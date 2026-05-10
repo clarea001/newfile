@@ -1,4 +1,4 @@
-/*
+/**
  * features/notifications.js - 通知 Notifications & Storage
  * 推送通知
  */

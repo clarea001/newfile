@@ -233,44 +233,51 @@
             </div>
         </div>
         <div class="input-area">
-            <!--<button id="collapse-expand-btn" title="展开更多" style="display:none;width:36px;height:36px;border:none;border-radius:50%;cursor:pointer;background:rgba(var(--accent-color-rgb),0.12);color:var(--accent-color);font-size:14px;transition:all 0.25s;flex-shrink:0;align-items:center;justify-content:center;" onclick="window.toggleCollapsedExtras && window.toggleCollapsedExtras()"><i class="fas fa-chevron-up"></i></button>-->
-            <button class="combo-btn input-btn collapse-hideable" id="combo-btn" title="表情 & 拍一拍">
-                <i class="fa-solid fa-face-smile"></i>
+    <button id="collapse-expand-btn" title="展开更多" style="display:none;width:36px;height:36px;border:none;border-radius:50%;cursor:pointer;background:rgba(var(--accent-color-rgb),0.12);color:var(--accent-color);font-size:14px;transition:all 0.25s;flex-shrink:0;align-items:center;justify-content:center;" onclick="window.toggleCollapsedExtras && window.toggleCollapsedExtras()"><i class="fas fa-chevron-up"></i></button>
+    <!--<button class="attachment-btn input-btn collapse-hideable" id="attachment-btn" title="发送图片"><i class="fas fa-image"></i></button>-->
+    
+    <button class="combo-btn input-btn collapse-hideable" id="combo-btn" title="表情 & 拍一拍">
+        <i class="fa-solid fa-face-smile"></i>
+    </button>
+
+    <textarea class="message-input"  data-keep-focus="true" id="message-input" placeholder="" rows="1"></textarea>
+    
+    <div class="input-buttons">
+    <!--<button class="continue-btn input-btn" id="continue-btn" title="让对方继续说"><i class="fa-solid fa-comment-dots"></i></button>-->
+        <!--<button class="batch-btn input-btn collapse-hideable" id="batch-btn" title="批量发送模式"><i class="fas fa-layer-group"></i></button>-->
+        <!--<button  class="action-btn input-btn" id="shutUpBtn" title="打断对方回复"><i class="fa-solid fa-xmark"></i></button>-->
+        
+        <div class="continue-btn-wrapper" id="continue-btn-wrapper">
+            <div class="continue-sub-btns" id="continue-sub-btns">
+                <button class="continue-sub-btn input-btn" id="continue-reply-btn" title="继续回复">
+                    <i class="fa-solid fa-comment-dots"></i>
+                </button>
+                <button class="continue-sub-btn input-btn shut-up-sub-btn" id="shutUpBtn" title="打断对方回复">
+                    <i class="fa-solid fa-comment-slash"></i>
+                </button>
+            </div>
+            <button class="action-btn input-btn" id="continue-btn" title="更多操作">
+                <i class="fa-solid fa-ellipsis"></i>
             </button>
-            <div class="sticker-picker-popover" id="user-sticker-picker">
-                <div class="combo-tabs-header">
-                    <button class="combo-tab-btn active" data-tab="my-sticker">😊 我的表情</button>
-                    <!--<button class="combo-tab-btn" data-tab="photo"><i class="fas fa-image" style="font-size:10px;"></i> 照片</button>-->
-                    <button class="combo-tab-btn" data-tab="poke">✨ 拍一拍</button>
-                    <button class="combo-tab-btn" data-tab="fast-tap">⚡ 快捷输入</button>
-                </div>
-                <div class="combo-content-area" id="combo-content-area">
-                </div>
-            </div>
-            <textarea class="message-input"  data-keep-focus="true" id="message-input" placeholder="" rows="1"></textarea>
-            <div class="input-buttons">
-                <!--<button class="continue-btn input-btn" id="continue-btn" title="让对方继续说"><i class="fa-solid fa-comment-dots"></i></button>-->
-                <!--<button class="batch-btn input-btn collapse-hideable" id="batch-btn" title="批量发送模式"><i class="fas fa-layer-group"></i></button>-->
-                <!--<button  class="action-btn input-btn" id="shutUpBtn" title="打断对方回复"><i class="fa-solid fa-xmark"></i></button>-->
-                <div class="continue-btn-wrapper" id="continue-btn-wrapper">   
-                    <div class="continue-sub-btns" id="continue-sub-btns">
-                        <button class="continue-sub-btn input-btn" id="continue-reply-btn" title="继续回复">
-                                <i class="fa-solid fa-comment-dots"></i>
-                        </button>
-                        <button class="attachment-btn input-btn collapse-hideable" id="attachment-btn" title="发送图片"><i class="fas fa-image"></i></button>
-                        <input type="file" id="image-input" class="file-input" accept="image/*">
-                        <button class="continue-sub-btn input-btn shut-up-sub-btn" id="shutUpBtn" title="打断对方回复">
-                            <i class="fa-solid fa-comment-slash"></i>
-                        </button>
-                    </div>
-                    <button class="action-btn input-btn" id="continue-btn" title="更多操作">
-                        <i class="fa-solid fa-ellipsis"></i>
-                    </button>
-                </div>
-                <button class="send-btn input-btn" id="send-btn" title="发送消息"><i class="fas fa-paper-plane"></i></button>
-            </div>
-            <!--<input type="file" id="my-sticker-quick-upload" class="file-input" accept="image/*" multiple> -->
         </div>
+
+
+        <button class="send-btn input-btn" id="send-btn" title="发送消息"><i class="fas fa-paper-plane"></i></button>
+        
+        <div class="sticker-picker-popover" id="user-sticker-picker">
+            <div class="combo-tabs-header">
+                <button class="combo-tab-btn active" data-tab="my-sticker"><i class="fas fa-user" style="font-size:10px;"></i> 我的表情</button>
+                <button class="combo-tab-btn" data-tab="photo"><i class="fas fa-image" style="font-size:10px;"></i> 照片</button>
+                <button class="combo-tab-btn" data-tab="poke">拍一拍</button>
+                <!-- 把原来右边的“添加”和“齿轮”按钮整块删掉了 -->
+            </div>
+            <div class="combo-content-area" id="combo-content-area">
+            </div>
+        </div>
+    </div>
+    <input type="file" id="image-input" class="file-input" accept="image/*">
+     <!--<input type="file" id="my-sticker-quick-upload" class="file-input" accept="image/*" multiple> -->
+</div>
     </div>
 
 
@@ -307,6 +314,16 @@
         </div>
     </div>
 
+    <!--<div class="modal" id="poke-modal">
+        <div class="modal-content">
+            <div class="modal-title">
+                <i class="fas fa-hand-sparkles"></i><span>拍一拍</span>
+            </div>
+            <input type="text" class="modal-input" id="poke-input" placeholder="例如：拍了拍对方的肩膀"><div class="modal-buttons">
+                <button class="modal-btn modal-btn-secondary" id="cancel-poke">取消</button><button class="modal-btn modal-btn-primary" id="send-poke">添加</button>
+            </div>
+        </div>
+    </div>-->
 
 <div class="modal" id="envelope-view-modal" style="z-index:2100;">
     <div class="modal-content" style="overflow:hidden;padding:0;background:transparent;max-height:92vh;display:flex;flex-direction:column;">
@@ -943,6 +960,32 @@
                 </div>
 
                 <div class="cs-panel" id="cs-panel-rhythm">
+                   <!-- <p class="cs-group-label">回复速度</p>
+                    <div class="cs-card" style="margin-bottom:10px;">
+                        <div class="cs-slider-row">
+                            <span class="cs-slider-label">最短等待</span>
+                            <input type="range" min="1000" max="30000" step="1000" value="3000" class="font-size-slider" id="reply-delay-min-slider">
+                            <span class="cs-slider-val" id="reply-delay-min-value">3s</span>
+                        </div>
+                        <div class="cs-slider-row">
+                            <span class="cs-slider-label">最长等待</span>
+                            <input type="range" min="1000" max="120000" step="1000" value="7000" class="font-size-slider" id="reply-delay-max-slider">
+                            <span class="cs-slider-val" id="reply-delay-max-value">7s</span>
+                        </div>
+                    </div>
+                    <p class="cs-group-label">回复条数</p>
+                    <div class="cs-card" style="margin-bottom:10px;">
+                        <div class="cs-slider-row">
+                            <span class="cs-slider-label">最少条数</span>
+                            <input type="range" min="1" max="10" step="1" value="10" class="font-size-slider" id="reply-text-min-slider">
+                            <span class="cs-slider-val" id="reply-text-min-value">1条</span>
+                        </div>
+                        <div class="cs-slider-row">
+                            <span class="cs-slider-label">最大条数</span>
+                            <input type="range" min="1" max="10" step="1" value="50" class="font-size-slider" id="reply-text-max-slider">
+                            <span class="cs-slider-val" id="reply-text-max-value">10条</span>
+                        </div>
+                    </div>-->
                     <p class="cs-group-label" style="margin-top:4px;">消息节奏</p>
                     <div class="cs-card">
                         <div class="setting-pill-row" id="emoji-mix-toggle">
@@ -953,6 +996,12 @@
                         <div class="cs-slider-row dual-slider-row">
                             <span class="setting-pill-icon"><i class="fa-solid fa-hourglass-half"></i></span>
                             <span class="setting-pill-label">回复速度  <span style="font-size:11px;color:var(--text-secondary);font-weight:400;">至多1-120秒</span></span>
+                            <!--<span class="cs-slider-val" id="reply-delay-min-value">3s</span>
+                            <div class="dual-track-wrap">
+                                <input type="range" min="1000" max="120000" step="1000" value="3000" class="font-size-slider" id="reply-delay-min-slider">
+                                <input type="range" min="1000" max="120000" step="1000" value="7000" class="font-size-slider" id="reply-delay-max-slider">
+                            </div>
+                            <span class="cs-slider-val" id="reply-delay-max-value">7s</span>-->
                             <!-- 修改这里的结构--> 
                             <div class="range-input-box">
                                 <input type="number" class="range-num" id="reply-delay-min-input" value="3" min="1" max="120">
@@ -964,6 +1013,12 @@
                         <div class="cs-slider-row dual-slider-row">
                             <span class="setting-pill-icon"><i class="fa-solid fa-align-left"></i></span>
                             <span class="setting-pill-label">回复条数  <span style="font-size:11px;color:var(--text-secondary);font-weight:400;">至多1-10条</span></span>
+                            <!--<span class="cs-slider-val" id="reply-text-min-value">1条</span>
+                            <div class="dual-track-wrap">
+                                <input type="range" min="1" max="10" step="1" value="1" class="font-size-slider" id="reply-text-min-slider">
+                                <input type="range" min="1" max="10" step="1" value="10" class="font-size-slider" id="reply-text-max-slider">
+                            </div>
+                            <span class="cs-slider-val" id="reply-text-max-value">10条</span>-->
                             <div class="range-input-box">
                                 <input type="number" class="range-num" id="reply-text-min-input" value="1" min="1" max="10">
                                 <span class="range-dash"> 至 </span>
@@ -2501,8 +2556,7 @@
     </div>
 </div>
 <div id="dg-editor-modal" style="display:none;"></div>
-<!-- 网关 -->
-    <script src="js/db-gateway.js"></script>
+
 <!--all--> 
     <script src="js/core.js"></script>
     <script src="js/config.js"></script>
@@ -2514,20 +2568,19 @@
     <script src="js/backup-engine.js"></script>
 <!--features-->
     <script src="js/features/call.js"></script>    
-    <!--<script src="js/features/combo-menu.js"></script>--> 
+    <script src="js/features/combo-menu.js"></script>    
     <script src="js/features/data-modal.js"></script>
     <script src="js/features/features-extra.js"></script>
     <script src="js/features/notifications.js"></script>
     <script src="js/features/theme-editor.js"></script>
-    <!--<script src="js/features/daily-greeting.js"></script>--> 
-    <!--<script src="js/features/appearance.js"></script>--> 
+    <script src="js/features/daily-greeting.js"></script>
+    <script src="js/features/appearance.js"></script>
     <script src="js/features/quick-panel.js"></script>
-    <script src="js/features/message-manager.js"></script>
+
 <!--fuction-->
     <script src="js/highfunctions/anniversary.js"></script>
-    <script src="js/highfunctions/daily-greeting.js"></script>
     <script src="js/highfunctions/calendar.js"></script>
-    
+    <script src="js/highfunctions/decision.js"></script>
     <script src="js/highfunctions/boards.js"></script>
     <script src="js/highfunctions/fortune.js"></script>
     <script src="js/highfunctions/mood.js"></script>

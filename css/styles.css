@@ -1526,7 +1526,6 @@
             box-shadow: 0 1px 4px rgba(0,0,0,0.2);
         }
 
-        
         body.with-background .header,
         body.with-background .input-area-wrapper {
             background-color: rgba(var(--secondary-bg-rgb), 0.3);
@@ -2169,7 +2168,6 @@
         }
         .modal-btn:active { transform: scale(0.96) !important; }
         .poke-quick-item:active { transform: scale(0.97) !important; }
-        .fasttap-quick-item:active { transform: scale(0.97) !important; }
         .settings-item:active { transform: scale(0.98) !important; }
         .sidebar-btn:active { transform: scale(0.95) !important; }
 
@@ -5833,7 +5831,7 @@
     .sticker-picker-popover {
         width: min(320px, calc(100vw - 40px));
         height: min(350px, calc(100svh - 200px));
-        left: 0;
+        right: 0;
         bottom: calc(100% + 6px);
         max-height: calc(100svh - 180px);
     }
@@ -8510,7 +8508,7 @@
         .sticker-picker-popover {
     position: absolute;
     bottom: calc(100% + 10px);
-    left: 0;
+    right: 0;
     width: 320px;
     height: 350px; 
     background-color: var(--secondary-bg);
@@ -8603,7 +8601,7 @@
     gap: 6px;
         }
 
-        .poke-quick-item,.fattap-quick-item {
+        .poke-quick-item {
     padding: 10px 14px;
     background: linear-gradient(135deg, rgba(var(--accent-color-rgb),0.13) 0%, rgba(var(--accent-color-rgb),0.04) 50%, rgba(var(--accent-color-rgb),0.09) 100%);
     border: none;
@@ -8618,7 +8616,7 @@
     gap: 8px;
     box-shadow: 0 1px 5px rgba(var(--accent-color-rgb),0.1);
         }
-        .poke-quick-item::before,.fasttap-quick-item::before {
+        .poke-quick-item::before {
     content: '✦';
     font-size: 10px;
     color: var(--accent-color);
@@ -8626,14 +8624,14 @@
     flex-shrink: 0;
         }
 
-        .poke-quick-item:hover,.fasttap-quick-item:hover {
+        .poke-quick-item:hover {
     background: linear-gradient(135deg, rgba(var(--accent-color-rgb),0.22) 0%, rgba(var(--accent-color-rgb),0.08) 50%, rgba(var(--accent-color-rgb),0.16) 100%);
     transform: translateX(4px);
     color: var(--text-primary);
     box-shadow: 0 3px 10px rgba(var(--accent-color-rgb),0.18);
         }
 
-        .custom-poke-btn,.custom-fasttap-btn {
+        .custom-poke-btn {
     width: 100%;
     padding: 11px 14px;
     margin-bottom: 10px;
@@ -8653,7 +8651,7 @@
     letter-spacing: 0.3px;
         }
 
-        .custom-poke-btn:hover,.custom-fasttap-btn:hover {
+        .custom-poke-btn:hover {
     filter: brightness(1.08);
     transform: translateY(-1px);
     box-shadow: 0 6px 18px rgba(var(--accent-color-rgb), 0.32);
@@ -11754,11 +11752,4 @@ html[data-theme="dark"] .period-stat-value { color: var(--accent-color-dark); }
     height: 6px;
     border-radius: 3px;
     background: var(--border-color, #e0e0e0);
-}
-/* 分享卡片专属：去掉气泡背景，只保留卡片本体 */
-.share-card-bubble-none {
-    background: transparent !important;
-    border: none !important;
-    box-shadow: none !important;
-    padding: 0 !important;
 }

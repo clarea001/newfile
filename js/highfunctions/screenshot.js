@@ -1,9 +1,9 @@
-/*
+/**
  * screenshot.js - 截图功能完整实现 (最终修复版)
  * 解决问题：按钮点击无反应（事件未绑定）
  */
 
-/*
+/**
  * 辅助函数：等待图片加载完成
  */
 function waitImgLoad(img) {
@@ -14,7 +14,7 @@ function waitImgLoad(img) {
     });
 }
 
-/*
+/**
  * 辅助函数：动态加载 html2canvas 库
  */
 function loadHtml2Canvas() {
@@ -31,7 +31,7 @@ function loadHtml2Canvas() {
     });
 }
 
-/*
+/**
  * 1. 初始化截图按钮 (使用事件委托，解决加载顺序问题)
  */
 function initScreenshotFunction() {
@@ -90,7 +90,7 @@ function openScreenshotModal() {
     }
 }
 
-/*
+/**
  * 关闭选择模态框
  */
 function closeScreenshotModal() {
@@ -100,7 +100,7 @@ function closeScreenshotModal() {
     }
 }
 
-/*
+/**
  * 3. 初始化消息选择列表 (优化版：支持批量选取、无提示、全交互)
  */
 function initScreenshotSelection() {
@@ -449,7 +449,7 @@ function initScreenshotSelection() {
     updateCount();
 }
 
-/*
+/**
  * 导出聊天记录为 TXT 文件 (极简分析版 + 头部统计)
  */
 function generateTxtFile(msgs) {
@@ -842,7 +842,7 @@ async function generateScreenshot(msgs) {
     }
 }
 
-/*
+/**
  * 🌟 新增：多张截图批量下载预览界面
  */
 function showBatchScreenshotPreview(results) {
@@ -908,7 +908,7 @@ function showBatchScreenshotPreview(results) {
 }
 
 
-/*
+/**
  * 5. 显示预览模态框
  */
 function showScreenshotPreview(url, count, width, height) {

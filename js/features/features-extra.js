@@ -1,4 +1,4 @@
-/*
+/**
  * features-extra.js — 扩展功能模块
  * 修复版：戳一戳多样式选择、顶部栏透明开关、挂机音频可视化、全局搜索
  */
@@ -288,4 +288,100 @@
         _setUI(_get() && !!_audio && !_audio.paused);
         if (_get() && (!_audio || _audio.paused)) _start();
     }, 1800);
+})();
+
+
+/* ═══════════════════════════════════════════════
+   4. 全局消息搜索
+   ═══════════════════════════════════════════════ */
+(function() {
+    window._runMsgSearch = function() {
+        var inp  = document.getElementById('msg-search-input');
+        var from = document.getElementById('msg-search-date-from');
+        var to   = document.getElementById('msg-search-date-to');
+        var out  = document.getElementById('msg-search-results');
+        if (!out) return;
+
+        var q  = inp  ? inp.value.trim().toLowerCase() : '';
+        var fd = from && from.value ? new Date(from.value+'T00:00:00') : null;
+        var td = to   && to.value   ? new Date(to.value  +'T23:59:59') : null;
+
+        if (!q && !fd && !td) {
+            out.innerHTML = '<div class="sri-empty"><i class="fas fa-search"></i><span>输入关键词或选择日期范围</span></div>';
+            return;
+        }
+        if (typeof messages === 'undefined' || !messages || !messages.length) {
+            out.innerHTML = '<div class="sri-empty"><i class="fas fa-inbox"></i><span>暂无聊天记录</span></div>';
+            return;
+        }
+
+        var res = messages.filter(function(m){
+            if (m.type === 'system') return false;
+            var ts = m.timestamp ? new Date(m.timestamp) : null;
+            if (fd && ts && ts < fd) return false;
+            if (td && ts && ts > td) return false;
+            if (q) return m.text && m.text.toLowerCase().indexOf(q) !== -1;
+            return true;
+        });
+
+        if (!res.length) {
+            out.innerHTML = '<div class="sri-empty"><i class="fas fa-inbox"></i><span>未找到匹配消息</span></div>';
+            return;
+        }
+
+        function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+        function hi(t,k){
+            if(!k||!t) return esc(t||'');
+            return esc(t).replace(new RegExp('('+k.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+')','gi'),'<mark style="background:rgba(var(--accent-color-rgb),.28);color:var(--text-primary);border-radius:3px;padding:0 2px;">$1</mark>');
+        }
+        function fmt(ts){
+            if(!ts) return '';
+            var d=new Date(ts);
+            return d.getFullYear()+'/'+(d.getMonth()+1+'').padStart(2,'0')+'/'+(d.getDate()+'').padStart(2,'0')+' '+(d.getHours()+'').padStart(2,'0')+':'+(d.getMinutes()+'').padStart(2,'0');
+        }
+        function nm(m){ return m.sender==='user'?((typeof settings!=='undefined'&&settings.myName)||'我'):((typeof settings!=='undefined'&&settings.partnerName)||'对方'); }
+
+        // Get real avatars from DOM
+        var _myAvSrc = (function(){
+            var el = document.querySelector('#my-avatar img,[id*="my-avatar"] img');
+            return el ? el.src : null;
+        })();
+        var _partnerAvSrc = (function(){
+            var el = document.querySelector('#partner-avatar img,[id*="partner-avatar"] img,.partner-avatar img');
+            return el ? el.src : null;
+        })();
+        function _avHtml(isMe) {
+            var src = isMe ? _myAvSrc : _partnerAvSrc;
+            if (src) return '<img src="'+src+'" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">';
+            return '<i class="fas fa-'+(isMe?'user':'user-circle')+'" style="font-size:16px;color:rgba(255,255,255,.8);"></i>';
+        }
+        var html = '<div style="font-size:12px;color:var(--text-secondary);padding:0 2px 8px;">共 <b style="color:var(--accent-color)">'+res.length+'</b> 条</div>';
+        html += res.slice(0,200).map(function(m){
+            var isMe = m.sender==='user';
+            var preview = m.text?(m.text.length>100?m.text.slice(0,100)+'…':m.text):(m.image?'[图片]':'');
+            return '<div class="search-result-item" onclick="window._scrollToMsg&&window._scrollToMsg('+m.id+')">'+
+                '<div class="sri-avatar '+(isMe?'sri-me':'sri-partner')+'">'+_avHtml(isMe)+'</div>'+
+                '<div class="sri-body">'+
+                  '<div class="sri-meta"><span class="sri-name">'+esc(nm(m))+'</span><span class="sri-time">'+fmt(m.timestamp)+'</span></div>'+
+                  '<div class="sri-text">'+hi(preview,q)+'</div>'+
+                '</div>'+
+            '</div>';
+        }).join('');
+        if (res.length>200) html+='<div style="text-align:center;font-size:12px;color:var(--text-secondary);padding:6px 0">仅显示前 200 条</div>';
+        out.innerHTML = html;
+    };
+
+    window._scrollToMsg = function(id) {
+        var el = document.querySelector('[data-id="'+id+'"]') || document.querySelector('[data-message-id="'+id+'"]');
+        if (el) {
+            el.scrollIntoView({behavior:'smooth',block:'center'});
+            el.style.transition='background .3s ease';
+            el.style.background='rgba(var(--accent-color-rgb),.14)';
+            setTimeout(function(){ el.style.background=''; }, 1800);
+            var m = document.getElementById('stats-modal');
+            if (m && typeof hideModal==='function') setTimeout(function(){ hideModal(m); }, 350);
+        } else {
+            if (typeof showNotification==='function') showNotification('消息不在当前视图中','info',2000);
+        }
+    };
 })();

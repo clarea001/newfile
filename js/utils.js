@@ -1,6 +1,6 @@
-/*
+/**
  * utils.js - Utility Functions
- * 工具函数，字体
+ * 工具函数
  */
 
         function safeGetItem(key) {
@@ -316,38 +316,43 @@ async function checkStorageSpace() {
   return estimate;
 }
 
+// 获取当前应该使用的字体源（优先本地文件，其次外部链接）
+/*async function getActiveFontSource() {
+  if (settings.useLocalFont) {
+    try {
+      // 🌟 优先读取极速版的二进制 Blob
+      const fontBlob = await localforage.getItem(`${APP_PREFIX}local_font_blob`);
+      if (fontBlob && fontBlob instanceof Blob) {
+        return URL.createObjectURL(fontBlob); // 瞬间生成链接
+      }
+      // 兼容旧用户：如果他们以前存过 Base64，也能正常读出来
+      const localBase64 = await localforage.getItem(`${APP_PREFIX}local_font_base64`);
+      return localBase64 || '';
+    } catch(e) {
+      return '';
+    }
+  }
+  return settings.customFontUrl || '';
+}*/
 async function getActiveFontSource() {
     if (settings.useLocalFont) {
         try {
-            // 🌟 顺应新架构：去新仓库的 APP_MEDIA 里面找名片，再通过管家拿真身
-            const mediaData = (typeof DB_GATEWAY !== 'undefined') ? DB_GATEWAY.getMedia('localFontData') : null;
-            const fontList = Array.isArray(mediaData) ? mediaData : [];
-            
-            // 🌟 核心改动：不管设置里存的是 ID 还是名字，反正拿它去名片里比对 name 字段！
-            const targetName = settings.activeLocalFontId || settings.localFontName || '';
-            if (targetName) {
-                const activeFontCard = fontList.find(f => f.name === targetName || f.id === targetName);
-                if (activeFontCard && activeFontCard.id) {
-
-                    // 🌟 通过管家的专属接口拿真身
-                    const pureBuffer = (typeof DB_GATEWAY !== 'undefined') ? DB_GATEWAY.getFontBuffer(activeFontCard.id) : null;
-                    if (pureBuffer) return URL.createObjectURL(new Blob([pureBuffer]));
-                }
+            const fontList = await localforage.getItem(`${APP_PREFIX}local_font_list`) || [];
+            // 优先按 activeLocalFontId 找
+            if (settings.activeLocalFontId) {
+                const activeFont = fontList.find(f => f.id === settings.activeLocalFontId);
+                if (activeFont && activeFont.blob) return URL.createObjectURL(activeFont.blob);
             }
             // 找不到就取第一个
-            if (fontList.length > 0 && fontList[0].id) {
-                const pureBuffer = (typeof DB_GATEWAY !== 'undefined') ? DB_GATEWAY.getFontBuffer(fontList[0].id) : null;
-                if (pureBuffer) return URL.createObjectURL(new Blob([pureBuffer]));
+            if (fontList.length > 0 && fontList[0].blob) {
+                return URL.createObjectURL(fontList[0].blob);
             }
-            
-            // 极老版本兜底（旧仓库）
+            // 兼容旧版单文件
             const fontBlob = await localforage.getItem(`${APP_PREFIX}local_font_blob`);
             if (fontBlob && fontBlob instanceof Blob) return URL.createObjectURL(fontBlob);
             const localBase64 = await localforage.getItem(`${APP_PREFIX}local_font_base64`);
             return localBase64 || '';
-        } catch(e) {
-            return '';
-        }
+        } catch(e) { return ''; }
     }
     return settings.customFontUrl || '';
 }

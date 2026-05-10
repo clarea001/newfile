@@ -1,4 +1,4 @@
-/*
+/**
  * features/daily-greeting.js - 每日问候 Daily Greeting
  * 每日晨报、沉浸模式与问候卡片
  */
@@ -82,7 +82,9 @@ var festivals = [
     var weathers = ['晴空万里', '多云转晴', '阴天有云', '细雨蒙蒙', '春风和煦', '微微寒冷', '清风徐徐', '雨后初晴', '夜色宁静', '月光皎洁', '晴间多云', '大雨滂沱', '雷雨交加', '小雪纷飞', '微风拂面', '多云天气', '雾气朦胧', '星光璀璨', '朝霞满天', '夕阳西下', '海风轻拂', '山间清爽', '秋叶飘落', '花香四溢', '绿意盎然', '雨后清新', '雪花飞舞', '阳光明媚'];
     var statusPool = ['正在想你 💭', '忙碌中，但心里有你', '好好的，别担心 ✨', '期待见到你', '有点想你了', '在努力变更好', '今天挺安静的', '心情不错哦 🌱', '一切都好，你呢？', '看月亮，想到你 🌙', '今天有点想你', '刚刚看到一朵云像你 ☁️', '工作再忙也会想你的', '今天你开心吗？', '梦里见 💤', '好好吃饭了吗？', '记得多喝水哦 💧', '今天有没有照顾好自己', '想你，但不说 🤫', '全世界你最可爱', '今天天气不错，适合想你', '吃饱喝足，开始想你', '今天也想牵你的手', '你有没有想我', '今天比昨天更想你', '看到好吃的想分享给你 🍜', '听到一首歌想到你 🎵', '今天也要加油鸭', '晚安，我的全世界 🌙', '早安，又是想你的一天'];
     
-    var todayKey = String(now.getFullYear()) + String(month) + String(day);
+    //var todayKey = String(now.getFullYear()) + String(month) + String(day);
+   // var seed = 0; for (var si = 0; si < todayKey.length; si++) seed += todayKey.charCodeAt(si) * (si + 1);
+       var todayKey = String(now.getFullYear()) + String(month) + String(day);
     // 🎯 引入浏览器唯一盐值，破除全站同质化
     var userSalt = localStorage.getItem('_dgUserSalt');
     if (!userSalt) {
@@ -153,6 +155,10 @@ function _buildDailyGreeting() {
 
         var userSaltForText = localStorage.getItem('_dgUserSalt') || '0';
         if (specialEvent) {
+            /*if (specialEvent.customMessage) {
+                var lines = specialEvent.customMessage.split('\n').filter(function(s){ return s.trim() !== ''; });
+                if (lines.length > 0) specialNote = lines[Math.floor(Math.random() * lines.length)];
+            }*/
             if (specialEvent.customMessage) {
                 var lines = specialEvent.customMessage.split('\n').filter(function(s){ return s.trim() !== ''; });
                 if (lines.length > 0) {
@@ -194,8 +200,11 @@ function _buildDailyGreeting() {
         var noteText = festival ? festival.note : '今天也要元气满满，我在这里陪着你 ✦';
 
         // 处理常规随机文案
-        var customData = window._dgCustomData || {};
-        // 🎯 标题和寄语也加上盐值，确保不同人看到的标题和寄语是纯概率随机的
+        var customData = {};
+        try { customData = JSON.parse(localStorage.getItem('dg_custom_data') || '{}'); } catch(e2) {}
+       // var dailySeed = now.getFullYear() * 10000 + (now.getMonth()+1) * 100 + now.getDate();
+           // 🎯 标题和寄语也加上盐值，确保不同人看到的标题和寄语是纯概率随机的
+        //var userSaltForText = localStorage.getItem('_dgUserSalt') || '0';
         var dailySeed = now.getFullYear() * 10000 + (now.getMonth()+1) * 100 + now.getDate() + parseInt(userSaltForText);
 
         function seededRandom(seed) { return (Math.abs(Math.sin(seed * 9301 + 49297) * 233280) % 233280) / 233280; }
@@ -244,9 +253,8 @@ function _buildDailyGreeting() {
         setEl('dg-partner-mood', partnerMoodText);
         setEl('dg-partner-mood-note', partnerMoodNote || (todayMood && todayMood.partner ? pName + ' 记录了今天的心情 ☆' : ''));
         
-        //var statusPoolData = [];
-        //try { statusPoolData = JSON.parse(localStorage.getItem('dg_status_pool') || '[]'); } catch(e2) {}
-        var statusPoolData = window._dgStatusPool || [];
+        var statusPoolData = [];
+        try { statusPoolData = JSON.parse(localStorage.getItem('dg_status_pool') || '[]'); } catch(e2) {}
         if (statusPoolData.length > 0) {
             var poolItem = statusPoolData[Math.floor(seededRandom(todaySeedForText + 2) * statusPoolData.length)];
             if (poolItem) {
@@ -275,17 +283,8 @@ function _buildDailyGreeting() {
         setEl('dg-date-stamp', now.getFullYear() + ' · ' + months[now.getMonth()] + '月' + now.getDate() + '日');
 
         // 背景图逻辑 (保持原样)
-        var customDataForBuild = window._dgCustomData || {};
-        var bgEl = document.getElementById('dg-header-band-bg');
-        if (bgEl && customDataForBuild.headerImg) {
-            bgEl.style.backgroundImage = 'url(' + customDataForBuild.headerImg + ')';
-            bgEl.classList.add('has-img');
-        }
-
-        var overlayBg = customDataForBuild.overlayBg;
-        var overlayTint = customDataForBuild.overlayTint;
-        if (overlayBg) applyDgOverlayBg(overlayBg, overlayTint);
-
+        var headerBg = localStorage.getItem('dg_header_bg'); var bgEl = document.getElementById('dg-header-band-bg'); if (bgEl && headerBg) { bgEl.style.backgroundImage = 'url(' + headerBg + ')'; bgEl.classList.add('has-img'); }
+        var overlayBg = localStorage.getItem('dg_overlay_bg'); if (overlayBg) applyDgOverlayBg(overlayBg);
         var decoImg = customData.decoImg; var decoWrap2 = document.getElementById('dg-deco-img-wrap'); var decoImgEl2 = document.getElementById('dg-deco-img'); if (decoWrap2 && decoImgEl2) { if (decoImg) { decoImgEl2.src = decoImg; decoWrap2.style.display = 'block'; } else { decoWrap2.style.display = 'none'; } }
 
     } catch(e) { console.warn('Daily greeting build error:', e); }
@@ -295,69 +294,12 @@ function _buildDailyGreeting() {
 window.toggleImmersiveMode = function(force) { var isOn = (force !== undefined) ? force : !document.body.classList.contains('immersive-mode'); document.body.classList.toggle('immersive-mode', isOn); var toggle = document.getElementById('immersive-toggle'); if (toggle) toggle.classList.toggle('active', isOn); try { localStorage.setItem('immersive_mode', isOn ? '1' : '0'); } catch(e) {} if (!isOn && typeof showNotification === 'function') showNotification('已退出沉浸式模式', 'info'); };
 (function() { var btn = document.getElementById('immersive-exit-btn'); if (!btn) return; var isDragging = false, hasMoved = false; var startX, startY, origRight, origBottom; function getRight() { return parseInt(btn.style.right) || 20; } function getBottom() { return parseInt(btn.style.bottom) || 100; } function onStart(e) { isDragging = true; hasMoved = false; btn.classList.add('dragging'); var touch = e.touches ? e.touches[0] : e; startX = touch.clientX; startY = touch.clientY; origRight = getRight(); origBottom = getBottom(); e.preventDefault(); } function onMove(e) { if (!isDragging) return; var touch = e.touches ? e.touches[0] : e; var dx = touch.clientX - startX; var dy = touch.clientY - startY; if (Math.abs(dx) > 3 || Math.abs(dy) > 3) hasMoved = true; var newRight = Math.max(10, Math.min(window.innerWidth - 54, origRight - dx)); var newBottom = Math.max(10, Math.min(window.innerHeight - 54, origBottom - dy)); btn.style.right = newRight + 'px'; btn.style.bottom = newBottom + 'px'; btn.style.left = 'auto'; btn.style.top = 'auto'; e.preventDefault(); } function onEnd(e) { if (!isDragging) return; isDragging = false; btn.classList.remove('dragging'); if (!hasMoved) { window.toggleImmersiveMode(false); } } btn.addEventListener('mousedown', onStart, {passive: false}); btn.addEventListener('touchstart', onStart, {passive: false}); document.addEventListener('mousemove', onMove, {passive: false}); document.addEventListener('touchmove', onMove, {passive: false}); document.addEventListener('mouseup', onEnd); document.addEventListener('touchend', onEnd); btn.removeAttribute('onclick'); })();
 (function() { try { if (localStorage.getItem('immersive_mode') === '1') { document.body.classList.add('immersive-mode'); var t = document.getElementById('immersive-toggle'); if (t) t.classList.add('active'); } } catch(e) {} })();
-window.openDailyGreetingEditor = function() {
-    var modal = document.getElementById('dg-editor-modal');
-    if (!modal) return;
-    var customData = window._dgCustomData || {};
-    var titleEl = document.getElementById('dg-edit-title'); 
-    var noteEl = document.getElementById('dg-edit-note'); 
-    if (titleEl) titleEl.value = (customData.titles && customData.titles.length) ? customData.titles.join('\n') : (customData.title || ''); 
-    if (noteEl) noteEl.value = (customData.notes && customData.notes.length) ? customData.notes.join('\n') : (customData.note || ''); 
-    if (customData.decoImg) { 
-        var prev = document.getElementById('dg-deco-preview'); 
-        var prevImg = document.getElementById('dg-deco-preview-img'); 
-        if (prev && prevImg) { 
-            prevImg.src = customData.decoImg; 
-            prev.style.display = 'block'; 
-        } 
-    } 
-    modal.style.display = 'flex'; modal.classList.add('active'); 
-};
+window.openDailyGreetingEditor = function() { var modal = document.getElementById('dg-editor-modal'); if (!modal) return; var customData = {}; try { customData = JSON.parse(localStorage.getItem('dg_custom_data') || '{}'); } catch(e) {} var titleEl = document.getElementById('dg-edit-title'); var noteEl = document.getElementById('dg-edit-note'); if (titleEl) titleEl.value = (customData.titles && customData.titles.length) ? customData.titles.join('\n') : (customData.title || ''); if (noteEl) noteEl.value = (customData.notes && customData.notes.length) ? customData.notes.join('\n') : (customData.note || ''); if (customData.decoImg) { var prev = document.getElementById('dg-deco-preview'); var prevImg = document.getElementById('dg-deco-preview-img'); if (prev && prevImg) { prevImg.src = customData.decoImg; prev.style.display = 'block'; } } modal.style.display = 'flex'; modal.classList.add('active'); };
 window.closeDailyGreetingEditor = function() { var modal = document.getElementById('dg-editor-modal'); if (modal) { modal.style.display = 'none'; modal.classList.remove('active'); } };
-window.saveDailyGreetingCustom = function() {
-    var customData = window._dgCustomData || {};
-    var titleEl = document.getElementById('dg-edit-title');
-    var noteEl = document.getElementById('dg-edit-note');
-    if (titleEl && titleEl.value.trim()) {
-        var titles = titleEl.value.split('\n').map(function(s){ return s.trim(); }).filter(Boolean);
-        customData.titles = titles;
-        customData.title = titles[0];
-    } else {
-        delete customData.titles;
-        delete customData.title;
-    }
-    if (noteEl && noteEl.value.trim()) {
-        var notes = noteEl.value.split('\n').map(function(s){ return s.trim(); }).filter(Boolean);
-        customData.notes = notes;
-        customData.note = notes[0];
-    } else {
-        delete customData.notes;
-        delete customData.note;
-    }
-    // 归入大部队：更新内存并通知管家存盘
-    window._dgCustomData = customData;
-    DB_GATEWAY.set('dgCustomData', customData); 
-    if (typeof throttledSaveData === 'function') throttledSaveData();
-    closeDailyGreetingEditor();
-    if (typeof _buildDailyGreeting === 'function') _buildDailyGreeting();
-    if (typeof showNotification === 'function') showNotification('公告已保存 ✦', 'success');
-};
-
-window.clearDgDecoImg = function() {
-    var customData = window._dgCustomData || {};
-    delete customData.decoImg;
-    window._dgCustomData = customData;
-    if (typeof throttledSaveData === 'function') throttledSaveData();
-    var prev = document.getElementById('dg-deco-preview'); 
-    if (prev) prev.style.display = 'none'; 
-    var wrap = document.getElementById('dg-deco-img-wrap'); 
-    if (wrap) wrap.style.display = 'none'; 
-};
+window.saveDailyGreetingCustom = function() { var customData = {}; try { customData = JSON.parse(localStorage.getItem('dg_custom_data') || '{}'); } catch(e) {} var titleEl = document.getElementById('dg-edit-title'); var noteEl = document.getElementById('dg-edit-note'); if (titleEl && titleEl.value.trim()) { var titles = titleEl.value.split('\n').map(function(s){ return s.trim(); }).filter(Boolean); customData.titles = titles; customData.title = titles[0]; } else { delete customData.titles; delete customData.title; } if (noteEl && noteEl.value.trim()) { var notes = noteEl.value.split('\n').map(function(s){ return s.trim(); }).filter(Boolean); customData.notes = notes; customData.note = notes[0]; } else { delete customData.notes; delete customData.note; } localStorage.setItem('dg_custom_data', JSON.stringify(customData)); closeDailyGreetingEditor(); if (typeof _buildDailyGreeting === 'function') _buildDailyGreeting(); if (typeof showNotification === 'function') showNotification('公告已保存 ✦', 'success'); };
+window.clearDgDecoImg = function() { var customData = {}; try { customData = JSON.parse(localStorage.getItem('dg_custom_data') || '{}'); } catch(e) {} delete customData.decoImg; localStorage.setItem('dg_custom_data', JSON.stringify(customData)); var prev = document.getElementById('dg-deco-preview'); if (prev) prev.style.display = 'none'; var wrap = document.getElementById('dg-deco-img-wrap'); if (wrap) wrap.style.display = 'none'; };
 window.clearDgHeaderBg = function() { 
-    var customData = window._dgCustomData || {};
-    delete customData.headerImg;
-    window._dgCustomData = customData;
-    if (typeof throttledSaveData === 'function') throttledSaveData();
+    localStorage.removeItem('dg_header_bg'); 
     var bgEl = document.getElementById('dg-header-band-bg'); 
     if (bgEl) { 
         bgEl.style.backgroundImage = ''; 
@@ -369,236 +311,90 @@ window.clearDgHeaderBg = function() {
         if (typeof showNotification === 'function') showNotification('顶部背景已清除', 'success'); 
     } 
 };
-window.onDgOverlayOpacityChange = function(val) { 
-    var tint = parseInt(val) / 100; 
-    if (!window._dgCustomData) window._dgCustomData = {};
-    window._dgCustomData.overlayTint = tint;
-    if (typeof throttledSaveData === 'function') throttledSaveData();
-    var valEl = document.getElementById('dg-overlay-opacity-val'); 
-    if (valEl) valEl.textContent = val + '%'; 
-    var tintLayer = document.getElementById('dg-card-tint-overlay'); 
-    if (tintLayer) tintLayer.style.background = 'rgba(0,0,0,' + tint + ')'; 
-};
-window.handleDgOverlayBgUpload = function(input) { 
-    var file = input.files[0]; 
-    if (!file) return; 
-    var reader = new FileReader(); 
-    reader.onload = function(ev) { 
-        var data = ev.target.result; 
-        if (!window._dgCustomData) window._dgCustomData = {};
-        window._dgCustomData.overlayBg = data;
-        if (typeof throttledSaveData === 'function') throttledSaveData();
-        applyDgOverlayBg(data); 
-        var prev = document.getElementById('dg-overlay-bg-preview'); 
-        var prevImg = document.getElementById('dg-overlay-bg-preview-img'); 
-        if (prev && prevImg) { 
-            prevImg.src = data; 
-            prev.style.display = 'block'; 
-        } 
-        var opRow = document.getElementById('dg-overlay-opacity-row'); 
-        if (opRow) opRow.style.display = 'block'; 
-        var savedTint = window._dgCustomData ? window._dgCustomData.overlayTint : null;
-        var pct = isNaN(savedTint) ? 25 : Math.round(savedTint * 100); 
-        var slider = document.getElementById('dg-overlay-opacity-slider'); 
-        var valEl = document.getElementById('dg-overlay-opacity-val'); 
-        if (slider) slider.value = pct; if (valEl) valEl.textContent = pct + '%'; 
-    }; 
-    reader.readAsDataURL(file);
-};
-window.clearDgOverlayBg = function() { 
-    var customData = window._dgCustomData || {};
-    delete customData.overlayBg;
-    delete customData.overlayTint;
-    window._dgCustomData = customData;
-    if (typeof throttledSaveData === 'function') throttledSaveData();
-    applyDgOverlayBg(null); 
-    var prev = document.getElementById('dg-overlay-bg-preview'); 
-    if (prev) prev.style.display = 'none'; 
-    var opRow = document.getElementById('dg-overlay-opacity-row'); 
-    if (opRow) opRow.style.display = 'none'; 
-    if (typeof showNotification === 'function') showNotification('全屏背景已清除', 'success'); 
-};
-function applyDgOverlayBg(data, tintOpacity) { 
-    var card = document.getElementById('daily-greeting-card'); 
-    var bgLayer = document.getElementById('dg-card-bg-layer'); 
-    var tintLayer = document.getElementById('dg-card-tint-overlay'); 
-    if (!card || !bgLayer) return; 
-    if (tintOpacity === undefined || tintOpacity === null) { 
-        var saved = (window._dgCustomData && window._dgCustomData.overlayTint) ? window._dgCustomData.overlayTint : null;
-        tintOpacity = isNaN(saved) ? 0.25 : saved; 
-    } if (data) { 
-        bgLayer.style.backgroundImage = 'url(' + data + ')'; 
-        bgLayer.style.opacity = '1'; 
-        if (tintLayer) tintLayer.style.background = 'rgba(0,0,0,' + tintOpacity + ')'; 
-        card.classList.add('has-card-bg'); 
-        card.style.backgroundImage = ''; 
-        card.style.backgroundSize = ''; 
-        card.style.backgroundPosition = ''; 
-        card.style.backgroundRepeat = ''; 
-    } else { 
-        bgLayer.style.backgroundImage = ''; 
-        bgLayer.style.opacity = ''; 
-        if (tintLayer) tintLayer.style.background = 'rgba(0,0,0,0)'; 
-        card.classList.remove('has-card-bg'); 
-    } 
-}
-
+window.onDgOverlayOpacityChange = function(val) { var tint = parseInt(val) / 100; localStorage.setItem('dg_overlay_bg_tint', tint); var valEl = document.getElementById('dg-overlay-opacity-val'); if (valEl) valEl.textContent = val + '%'; var tintLayer = document.getElementById('dg-card-tint-overlay'); if (tintLayer) tintLayer.style.background = 'rgba(0,0,0,' + tint + ')'; };
+window.handleDgOverlayBgUpload = function(input) { var file = input.files[0]; if (!file) return; var reader = new FileReader(); reader.onload = function(ev) { var data = ev.target.result; localStorage.setItem('dg_overlay_bg', data); applyDgOverlayBg(data); var prev = document.getElementById('dg-overlay-bg-preview'); var prevImg = document.getElementById('dg-overlay-bg-preview-img'); if (prev && prevImg) { prevImg.src = data; prev.style.display = 'block'; } var opRow = document.getElementById('dg-overlay-opacity-row'); if (opRow) opRow.style.display = 'block'; var savedTint = parseFloat(localStorage.getItem('dg_overlay_bg_tint')); var pct = isNaN(savedTint) ? 25 : Math.round(savedTint * 100); var slider = document.getElementById('dg-overlay-opacity-slider'); var valEl = document.getElementById('dg-overlay-opacity-val'); if (slider) slider.value = pct; if (valEl) valEl.textContent = pct + '%'; }; reader.readAsDataURL(file); };
+window.clearDgOverlayBg = function() { localStorage.removeItem('dg_overlay_bg'); applyDgOverlayBg(null); var prev = document.getElementById('dg-overlay-bg-preview'); if (prev) prev.style.display = 'none'; var opRow = document.getElementById('dg-overlay-opacity-row'); if (opRow) opRow.style.display = 'none'; if (typeof showNotification === 'function') showNotification('全屏背景已清除', 'success'); };
+function applyDgOverlayBg(data, tintOpacity) { var card = document.getElementById('daily-greeting-card'); var bgLayer = document.getElementById('dg-card-bg-layer'); var tintLayer = document.getElementById('dg-card-tint-overlay'); if (!card || !bgLayer) return; if (tintOpacity === undefined || tintOpacity === null) { var saved = parseFloat(localStorage.getItem('dg_overlay_bg_tint')); tintOpacity = isNaN(saved) ? 0.25 : saved; } if (data) { bgLayer.style.backgroundImage = 'url(' + data + ')'; bgLayer.style.opacity = '1'; if (tintLayer) tintLayer.style.background = 'rgba(0,0,0,' + tintOpacity + ')'; card.classList.add('has-card-bg'); card.style.backgroundImage = ''; card.style.backgroundSize = ''; card.style.backgroundPosition = ''; card.style.backgroundRepeat = ''; } else { bgLayer.style.backgroundImage = ''; bgLayer.style.opacity = ''; if (tintLayer) tintLayer.style.background = 'rgba(0,0,0,0)'; card.classList.remove('has-card-bg'); } }
+(function() { var savedOverlayBg = localStorage.getItem('dg_overlay_bg'); if (savedOverlayBg) { document.addEventListener('DOMContentLoaded', function() { applyDgOverlayBg(savedOverlayBg); var prev = document.getElementById('dg-overlay-bg-preview'); var prevImg = document.getElementById('dg-overlay-bg-preview-img'); if (prev && prevImg) { prevImg.src = savedOverlayBg; prev.style.display = 'block'; } var opRow = document.getElementById('dg-overlay-opacity-row'); if (opRow) opRow.style.display = 'block'; var savedOp = parseFloat(localStorage.getItem('dg_overlay_bg_tint')); var pct = isNaN(savedOp) ? 25 : Math.round(savedOp * 100); var slider = document.getElementById('dg-overlay-opacity-slider'); var valEl = document.getElementById('dg-overlay-opacity-val'); if (slider) slider.value = pct; if (valEl) valEl.textContent = pct + '%'; }); } })();
+//window.switchToAnnouncementPanel = function() { var listArea = document.getElementById('custom-replies-list'); var annPanel = document.getElementById('announcement-panel'); var toolbar = document.getElementById('cr-toolbar'); var subTabs = document.getElementById('cr-sub-tabs'); var addBtn = document.getElementById('add-custom-reply'); var titleEl = document.getElementById('cr-modal-title'); if (listArea) listArea.style.display = 'none'; if (annPanel) { annPanel.style.display = 'block'; annPanel.scrollTop = 0; } if (toolbar) toolbar.style.display = 'none'; if (subTabs) subTabs.style.display = 'none'; if (addBtn) addBtn.style.display = 'none'; if (titleEl) titleEl.textContent = '今日公告配置'; var customData = {}; try { customData = JSON.parse(localStorage.getItem('dg_custom_data') || '{}'); } catch(e2) {} var titleInput = document.getElementById('dg-edit-title'); var noteInput = document.getElementById('dg-edit-note'); if (titleInput) titleInput.value = (customData.titles && customData.titles.length) ? customData.titles.join('\n') : (customData.title || ''); if (noteInput) noteInput.value = (customData.notes && customData.notes.length) ? customData.notes.join('\n') : (customData.note || ''); if (customData.decoImg) { var prev = document.getElementById('dg-deco-preview'); var prevImg = document.getElementById('dg-deco-preview-img'); if (prev && prevImg) { prevImg.src = customData.decoImg; prev.style.display = 'block'; } } var savedOverlayBg2 = localStorage.getItem('dg_overlay_bg'); if (savedOverlayBg2) { var overlayPrev = document.getElementById('dg-overlay-bg-preview'); var overlayPrevImg = document.getElementById('dg-overlay-bg-preview-img'); if (overlayPrev && overlayPrevImg) { overlayPrevImg.src = savedOverlayBg2; overlayPrev.style.display = 'block'; } } renderAnnStatusPool(); };
 window.switchToAnnouncementPanel = function() {
+    currentMajorTab = 'announcement';
+    _batchModeActive = false;
+    _batchSelectedIndices.clear();
+    _searchVisible = false;
+    _searchQuery = '';
+    _activeGroupFilter = null;
     renderReplyLibrary();
-    
-    var customData = window._dgCustomData || {};
-    
-    // 回显标题输入框
-    var titleInput = document.getElementById('dg-edit-title');
-    if (titleInput) {
-      titleInput.value = (customData.titles && customData.titles.length) ? customData.titles.join('\n') : (customData.title || '');
-    }
-    
-    // 回显寄语输入框
-    var noteInput = document.getElementById('dg-edit-note');
-    if (noteInput) {
-      noteInput.value = (customData.notes && customData.notes.length) ? customData.notes.join('\n') : (customData.note || '');
-    }
-    
-    // 强制重新渲染状态库列表
-    if (typeof renderAnnStatusPool === 'function') {
-      renderAnnStatusPool();
-    }
+// 补全预览图回显逻辑
+    setTimeout(function() {
+        var customData = {};
+        try { customData = JSON.parse(localStorage.getItem('dg_custom_data') || '{}'); } catch(e) {}
 
-    // 回显顶部背景 (从正规军拿)
-    var savedHeaderBg = customData.headerImg;
-    if (savedHeaderBg) {
-      var hp = document.getElementById('dg-header-bg-preview');
-      var hpImg = document.getElementById('dg-header-bg-preview-img');
-      if (hp && hpImg) {
-        hpImg.src = savedHeaderBg;
-        hp.style.display = 'block';
-      }
-    }
-
-    // 回显卡片背景及透明度 (彻底干掉 localStorage，从正规军拿)
-    var savedOverlayBg = customData.overlayBg;
-    if (savedOverlayBg) {
-      var op = document.getElementById('dg-overlay-bg-preview');
-      var opImg = document.getElementById('dg-overlay-bg-preview-img');
-      if (op && opImg) {
-        opImg.src = savedOverlayBg;
-        op.style.display = 'block';
-      }
-      var opRow = document.getElementById('dg-overlay-opacity-row');
-      if (opRow) opRow.style.display = 'block';
-      
-      // 同步透明度滑块的状态
-      var savedTint = customData.overlayTint;
-      var pct = (savedTint === undefined || savedTint === null) ? 25 : Math.round(savedTint * 100);
-      var slider = document.getElementById('dg-overlay-opacity-slider');
-      var valEl = document.getElementById('dg-overlay-opacity-val');
-      if (slider) slider.value = pct;
-      if (valEl) valEl.textContent = pct + '%';
-    }
-
-    // 回显装饰图
-    if (customData.decoImg) {
-      var dp = document.getElementById('dg-deco-preview');
-      var dpImg = document.getElementById('dg-deco-preview-img');
-      if (dp && dpImg) {
-        dpImg.src = customData.decoImg;
-        dp.style.display = 'block';
-      }
-    }
+        // 回显顶部背景
+        var savedHeaderBg = localStorage.getItem('dg_header_bg');
+        if (savedHeaderBg) {
+            var hp = document.getElementById('dg-header-bg-preview');
+            var hpImg = document.getElementById('dg-header-bg-preview-img');
+            if (hp && hpImg) { hpImg.src = savedHeaderBg; hp.style.display = 'block'; }
+        }
+        // 回显卡片背景
+        var savedOverlayBg = localStorage.getItem('dg_overlay_bg');
+        if (savedOverlayBg) {
+            var op = document.getElementById('dg-overlay-bg-preview');
+            var opImg = document.getElementById('dg-overlay-bg-preview-img');
+            if (op && opImg) { opImg.src = savedOverlayBg; op.style.display = 'block'; }
+            var opRow = document.getElementById('dg-overlay-opacity-row');
+            if (opRow) opRow.style.display = 'block';
+        }
+        // 回显装饰图
+        if (customData.decoImg) {
+            var dp = document.getElementById('dg-deco-preview');
+            var dpImg = document.getElementById('dg-deco-preview-img');
+            if (dp && dpImg) { dpImg.src = customData.decoImg; dp.style.display = 'block'; }
+        }
+    }, 50);
 };
 
-window.renderAnnStatusPool = function() {
-    var listEl = document.getElementById('ann-status-pool-list');
-    if (!listEl) return;
-    var pool = window._dgStatusPool || [];
-    listEl.innerHTML = ''; 
-    if (pool.length === 0) { 
-        listEl.innerHTML = 
-        '<div style="font-size:12px;color:var(--text-secondary);text-align:center;padding:10px 0;opacity:0.6;">暂无条目，添加后将随机抽取</div>';
-        return; 
-    } 
-    pool.forEach(function(item, idx) {
-        var row = document.createElement('div'); 
-        row.style.cssText = 
-        'display:flex;align-items:center;gap:10px;padding:9px 12px;background:linear-gradient(135deg,rgba(var(--accent-color-rgb),0.05),rgba(var(--accent-color-rgb),0.02));border-radius:12px;border:1px solid rgba(var(--accent-color-rgb),0.15);font-size:13px;transition:box-shadow 0.2s;'; var iconHtml = item.iconImg ? '<img src="' + item.iconImg + '" style="width:26px;height:26px;border-radius:50%;object-fit:cover;flex-shrink:0;">' : '<span style="font-size:18px;min-width:26px;text-align:center;flex-shrink:0;">' + (item.icon || '✦') + '</span>'; 
-        row.innerHTML = iconHtml + '<div style="flex:1;min-width:0;">' + '<div style="color:var(--text-primary);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + (item.status || '—') + '</div>' + (item.label ? '<div style="color:var(--accent-color);font-size:10px;letter-spacing:1.5px;margin-top:2px;opacity:0.8;">' + item.label + '</div>' : '') + '</div>' + '<button onclick="removeAnnStatusPoolItem(' + idx + ')" style="background:none;border:none;color:var(--text-secondary);cursor:pointer;font-size:14px;padding:3px 5px;border-radius:6px;opacity:0.6;transition:opacity 0.2s;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.6">✕</button>'; 
-        listEl.appendChild(row); 
-    }); 
-};
-window.addAnnStatusPoolItem = function() {
-    var statusInput = document.getElementById('ann-status-pool-input');
-    var labelInput = document.getElementById('ann-status-label-input');
-    var iconInput = document.getElementById('ann-status-icon-input');
-    var status = statusInput ? statusInput.value.trim() : '';
-    var label = labelInput ? labelInput.value.trim() : '';
-    var icon = iconInput ? iconInput.value.trim() : '';
-    var iconImg = iconInput ? (iconInput.dataset.imgSrc || '') : '';
-    if (!status && !label) {
-        if (typeof showNotification === 'function') showNotification('请至少填写状态或标签', 'warning');
-        return;
-    }
-    var pool = window._dgStatusPool || [];
-    var entry = { status: status, label: label, icon: icon || '✦' };
-    if (iconImg) entry.iconImg = iconImg;
-    pool.push(entry);
-    // 归入大部队：更新内存并通知管家存盘
-    window._dgStatusPool = pool;
-    if (typeof throttledSaveData === 'function') throttledSaveData();
-    if (statusInput) statusInput.value = ''; 
-    if (labelInput) labelInput.value = ''; 
-    if (iconInput) { 
-        iconInput.value = ''; 
-        delete iconInput.dataset.imgSrc; 
-    } renderAnnStatusPool(); 
-    if (typeof showNotification === 'function') 
-    showNotification('已添加到随机库', 'success'); 
-};
+
+window.renderAnnStatusPool = function() { var listEl = document.getElementById('ann-status-pool-list'); if (!listEl) return; var pool = []; try { pool = JSON.parse(localStorage.getItem('dg_status_pool') || '[]'); } catch(e2) {} listEl.innerHTML = ''; if (pool.length === 0) { listEl.innerHTML = '<div style="font-size:12px;color:var(--text-secondary);text-align:center;padding:10px 0;opacity:0.6;">暂无条目，添加后将随机抽取</div>'; return; } pool.forEach(function(item, idx) { var row = document.createElement('div'); row.style.cssText = 'display:flex;align-items:center;gap:10px;padding:9px 12px;background:linear-gradient(135deg,rgba(var(--accent-color-rgb),0.05),rgba(var(--accent-color-rgb),0.02));border-radius:12px;border:1px solid rgba(var(--accent-color-rgb),0.15);font-size:13px;transition:box-shadow 0.2s;'; var iconHtml = item.iconImg ? '<img src="' + item.iconImg + '" style="width:26px;height:26px;border-radius:50%;object-fit:cover;flex-shrink:0;">' : '<span style="font-size:18px;min-width:26px;text-align:center;flex-shrink:0;">' + (item.icon || '✦') + '</span>'; row.innerHTML = iconHtml + '<div style="flex:1;min-width:0;">' + '<div style="color:var(--text-primary);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + (item.status || '—') + '</div>' + (item.label ? '<div style="color:var(--accent-color);font-size:10px;letter-spacing:1.5px;margin-top:2px;opacity:0.8;">' + item.label + '</div>' : '') + '</div>' + '<button onclick="removeAnnStatusPoolItem(' + idx + ')" style="background:none;border:none;color:var(--text-secondary);cursor:pointer;font-size:14px;padding:3px 5px;border-radius:6px;opacity:0.6;transition:opacity 0.2s;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.6">✕</button>'; listEl.appendChild(row); }); };
+window.addAnnStatusPoolItem = function() { var statusInput = document.getElementById('ann-status-pool-input'); var labelInput = document.getElementById('ann-status-label-input'); var iconInput = document.getElementById('ann-status-icon-input'); var status = statusInput ? statusInput.value.trim() : ''; var label = labelInput ? labelInput.value.trim() : ''; var icon = iconInput ? iconInput.value.trim() : ''; var iconImg = iconInput ? (iconInput.dataset.imgSrc || '') : ''; if (!status && !label) { if (typeof showNotification === 'function') showNotification('请至少填写状态或标签', 'warning'); return; } var pool = []; try { pool = JSON.parse(localStorage.getItem('dg_status_pool') || '[]'); } catch(e2) {} var entry = { status: status, label: label, icon: icon || '✦' }; if (iconImg) entry.iconImg = iconImg; pool.push(entry); localStorage.setItem('dg_status_pool', JSON.stringify(pool)); if (statusInput) statusInput.value = ''; if (labelInput) labelInput.value = ''; if (iconInput) { iconInput.value = ''; delete iconInput.dataset.imgSrc; } renderAnnStatusPool(); if (typeof showNotification === 'function') showNotification('已添加到随机库', 'success'); };
 window.handleAnnStatusIconUpload = function(input) { var file = input.files[0]; if (!file) return; var reader = new FileReader(); reader.onload = function(ev) { var iconInput = document.getElementById('ann-status-icon-input'); if (iconInput) { iconInput.dataset.imgSrc = ev.target.result; iconInput.value = '[图片]'; iconInput.style.fontSize = '10px'; } }; reader.readAsDataURL(file); };
-window.removeAnnStatusPoolItem = function(idx) {
-    var pool = window._dgStatusPool || [];
-    pool.splice(idx, 1);
-    // 归入大部队：更新内存并通知管家存盘
-    window._dgStatusPool = pool;
-    if (typeof throttledSaveData === 'function') throttledSaveData();
-    renderAnnStatusPool(); 
-};
+window.removeAnnStatusPoolItem = function(idx) { var pool = []; try { pool = JSON.parse(localStorage.getItem('dg_status_pool') || '[]'); } catch(e2) {} pool.splice(idx, 1); localStorage.setItem('dg_status_pool', JSON.stringify(pool)); renderAnnStatusPool(); };
 document.addEventListener('DOMContentLoaded', function() { 
-    var headerInput = document.getElementById('dg-header-img-input');
-    if (headerInput) {
-        headerInput.addEventListener('change', function(e) {
-            var file = e.target.files[0]; if (!file) return;
+    var headerInput = document.getElementById('dg-header-img-input'); 
+    if (headerInput) { 
+        headerInput.addEventListener('change', function(e) { 
+            var file = e.target.files[0]; if (!file) return; 
             var reader = new FileReader();
-            reader.onload = function(ev) {
-                var data = ev.target.result;
-                // 1. 存入正规军
-                if (!window._dgCustomData) window._dgCustomData = {};
-                window._dgCustomData.headerImg = data;
-                // 2. 通知管家存盘
-                if (typeof throttledSaveData === 'function') throttledSaveData();
-                // 3. 页面实时预览
-                var bgEl = document.getElementById('dg-header-band-bg');
-                if (bgEl) { bgEl.style.backgroundImage = 'url(' + data + ')'; bgEl.classList.add('has-img'); }
+            reader.onload = function(ev) { 
+                var data = ev.target.result; 
+                localStorage.setItem('dg_header_bg', data); 
+                var bgEl = document.getElementById('dg-header-band-bg'); 
+                if (bgEl) { 
+                    bgEl.style.backgroundImage = 'url(' + data + ')'; 
+                    bgEl.classList.add('has-img'); 
+                } 
                 var headerPrev = document.getElementById('dg-header-bg-preview');
                 var headerPrevImg = document.getElementById('dg-header-bg-preview-img');
-                if (headerPrev && headerPrevImg) { headerPrevImg.src = data; headerPrev.style.display = 'block'; }
-            };
-            reader.readAsDataURL(file);
-        });
-    }
-
+                if (headerPrev && headerPrevImg) {
+                    headerPrevImg.src = data;
+                    headerPrev.style.display = 'block';
+                }
+            }; 
+            reader.readAsDataURL(file); 
+        }); 
+    } 
     var decoInput = document.getElementById('dg-deco-img-input'); 
     if (decoInput) { 
         decoInput.addEventListener('change', function(e) { 
             var file = e.target.files[0]; 
             if (!file) return; 
-            var reader = new FileReader(); 
-            reader.onload = function(ev) {
-                var data = ev.target.result;
-                var customData = window._dgCustomData || {};
-                customData.decoImg = data;
-                window._dgCustomData = customData;
-                if (typeof throttledSaveData === 'function') throttledSaveData();
+            var reader = new FileReader(); reader.onload = function(ev) { 
+                var data = ev.target.result; 
+                var customData = {}; try { 
+                    customData = JSON.parse(localStorage.getItem('dg_custom_data') || '{}'); 
+                } catch(ex) {} customData.decoImg = data; 
+                localStorage.setItem('dg_custom_data', JSON.stringify(customData)); 
                 var prev = document.getElementById('dg-deco-preview'); 
                 var prevImg = document.getElementById('dg-deco-preview-img'); 
                 if (prev && prevImg) { 
@@ -609,10 +405,51 @@ document.addEventListener('DOMContentLoaded', function() {
     } 
 });
 // ==========================================
-// 页面加载时：自动恢复公告管理面板里的预览图状态（从大部队拿数据）
+// 页面加载时：自动恢复公告管理面板里的预览图状态
 // ==========================================
 setTimeout(function() {
-    var customData = window._dgCustomData || {};
+    var customData = {};
+    try { customData = JSON.parse(localStorage.getItem('dg_custom_data') || '{}'); } catch(e) {}
+
+    // 1. 恢复：顶部背景图预览
+    var savedHeaderBg = localStorage.getItem('dg_header_bg');
+    if (savedHeaderBg) {
+        var headerPrev = document.getElementById('dg-header-bg-preview');
+        var headerPrevImg = document.getElementById('dg-header-bg-preview-img');
+        if (headerPrev && headerPrevImg) {
+            headerPrevImg.src = savedHeaderBg;
+            headerPrev.style.display = 'block';
+        }
+    }
+
+    // 2. 恢复：卡片内背景图预览
+    var savedOverlayBg = localStorage.getItem('dg_overlay_bg');
+    if (savedOverlayBg) {
+        var overlayPrev = document.getElementById('dg-overlay-bg-preview');
+        var overlayPrevImg = document.getElementById('dg-overlay-bg-preview-img');
+        if (overlayPrev && overlayPrevImg) {
+            overlayPrevImg.src = savedOverlayBg;
+            overlayPrev.style.display = 'block';
+        }
+        var opRow = document.getElementById('dg-overlay-opacity-row');
+        if (opRow) opRow.style.display = 'block';
+        var savedOp = parseFloat(localStorage.getItem('dg_overlay_bg_tint'));
+        var pct = isNaN(savedOp) ? 25 : Math.round(savedOp * 100);
+        var slider = document.getElementById('dg-overlay-opacity-slider');
+        var valEl = document.getElementById('dg-overlay-opacity-val');
+        if (slider) slider.value = pct;
+        if (valEl) valEl.textContent = pct + '%';
+    }
+
+    // 3. 恢复：装饰图预览
+    if (customData.decoImg) {
+        var decoPrev = document.getElementById('dg-deco-preview');
+        var decoPrevImg = document.getElementById('dg-deco-preview-img');
+        if (decoPrev && decoPrevImg) {
+            decoPrevImg.src = customData.decoImg;
+            decoPrev.style.display = 'block';
+        }
+    }
 }, 100);
 
 window.updateDynamicNames = function() { try { var pName = (typeof settings !== 'undefined' && settings.partnerName) ? settings.partnerName : '梦角'; var mName = (typeof settings !== 'undefined' && settings.myName) ? settings.myName : '我'; var tabPartner = document.getElementById('mood-tab-partner'); if (tabPartner) tabPartner.textContent = pName + '的记录'; var tabMe = document.getElementById('mood-tab-me'); if (tabMe) tabMe.textContent = mName + '的记录'; var detailPartnerTitle = document.getElementById('detail-partner-title'); if (detailPartnerTitle) detailPartnerTitle.textContent = pName + '的'; var partnerNoRec = document.getElementById('detail-partner-no-record'); if (partnerNoRec) { var msgEl = partnerNoRec; if (!msgEl.querySelector('span')) msgEl.textContent = pName + ' 这天还没有留下记录'; } var editPartnerBtn = document.getElementById('edit-partner-mood'); if (editPartnerBtn) editPartnerBtn.textContent = '修改' + pName; var deletePartnerBtn = document.getElementById('delete-partner-mood'); if (deletePartnerBtn) deletePartnerBtn.textContent = '删除' + pName; var continueBtn = document.getElementById('continue-btn'); if (continueBtn) continueBtn.title = '让' + pName + '继续说'; var envInfo = document.querySelector('.env-send-info'); if (envInfo) { var textNodes = Array.from(envInfo.childNodes).filter(n => n.nodeType === 3); textNodes.forEach(function(n) { if (n.textContent.includes('对方将在') || n.textContent.includes('小时内回信')) { n.textContent = pName + ' 将在 10-24 小时内回信（8-12 句话）'; } }); } setDgLabel('dg-section-label-partner', pName + ' 今日状态'); setDgLabel('dg-weather-label', pName + ' 的天气'); setDgLabel('dg-status-label', pName + ' 的状态'); var envInfoSpan = document.getElementById('env-reply-time-info'); if (envInfoSpan) envInfoSpan.textContent = pName + ' 将在 10-24 小时内回信（8-12 句话）'; var pokeInput = document.getElementById('poke-input'); if (pokeInput) pokeInput.placeholder = '例如：拍了拍"' + pName + '"的肩膀'; document.querySelectorAll('[data-name-partner]').forEach(function(el) { el.textContent = pName + '的记录'; }); document.querySelectorAll('[data-name-me]').forEach(function(el) { el.textContent = mName + '的记录'; }); document.querySelectorAll('[data-delete-partner]').forEach(function(el) { el.textContent = '删除' + pName; }); document.querySelectorAll('[data-edit-partner]').forEach(function(el) { el.textContent = '修改' + pName; }); } catch(e) { console.warn('updateDynamicNames error:', e); } };
