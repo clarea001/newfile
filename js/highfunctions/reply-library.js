@@ -1,4 +1,4 @@
-/**
+/*
  * features/reply-library.js — 回复库 · 全新重构版
  * ✦ 移动优先 · 底部 Tab 导航 · 精美卡片 · 分组高度自定义 · 批量管理
  */
@@ -12,46 +12,6 @@ let _searchVisible = false;
 let _searchQuery = '';
 let _searchDebounceTimer = null;
 let _activeGroupFilter = null; 
-
-const CallBgDB = {
-  db: null,
-  storeName: 'callbg_files',
-  init() {
-    return new Promise((resolve, reject) => {
-      if (this.db) return resolve(this.db);
-      const req = indexedDB.open('ChatApp_CallBgDB', 1);
-      req.onupgradeneeded = e => e.target.result.createObjectStore(this.storeName, { keyPath: 'id' });
-      req.onsuccess = e => { this.db = e.target.result; resolve(this.db); };
-      req.onerror = e => reject(e.target.error);
-    });
-  },
-  put(id, file) {
-    return new Promise((resolve, reject) => {
-      const tx = this.db.transaction(this.storeName, 'readwrite');
-      tx.objectStore(this.storeName).put({ id, file });
-      tx.oncomplete = () => resolve();
-      tx.onerror = (e) => reject(e.target.error);
-    });
-  },
-  get(id) {
-    return new Promise((resolve, reject) => {
-      const tx = this.db.transaction(this.storeName, 'readonly');
-      const req = tx.objectStore(this.storeName).get(id);
-      req.onsuccess = () => resolve(req.result ? req.result.file : null);
-      req.onerror = (e) => reject(e.target.error);
-    });
-  },
-  delete(id) {
-    return new Promise((resolve, reject) => {
-      const tx = this.db.transaction(this.storeName, 'readwrite');
-      tx.objectStore(this.storeName).delete(id);
-      tx.oncomplete = () => resolve();
-      tx.onerror = (e) => reject(e.target.error);
-    });
-  }
-};
-CallBgDB.init().catch(e => console.error('CallBgDB初始化失败', e));
-
 
 const GROUP_COLORS = [
     '#FF6B6B','#FF8E53','#FFC542','#51CF66',
@@ -131,8 +91,7 @@ function _renderListContentOnly() {
 
     if (renderType === 'emoji') { _renderEmojiTab(list, itemsToRender); return; }
     if (renderType === 'image') { _renderStickerTab(list, itemsToRender); return; }
-    //if (renderType === 'period') { _renderPeriodCareTab(list); return; } 
-    if (renderType === 'callbg') {_renderCallBgTab(list);return;}
+    if (renderType === 'callbg') {_renderCallBgTab(list, itemsToRender);return;}
 
 
     const q = _searchQuery.toLowerCase().trim();
@@ -218,8 +177,7 @@ function renderReplyLibrary() {
     // ==================== 关键分支：特殊渲染优先 ====================
     if (renderType === 'emoji') { _renderEmojiTab(list, itemsToRender); return; }
     if (renderType === 'image') { _renderStickerTab(list, itemsToRender); return; }
-   // if (renderType === 'period') { _renderPeriodCareTab(list); return; }
-    if (renderType === 'callbg') { _renderCallBgTab(list); return; }
+    if (renderType === 'callbg') { _renderCallBgTab(list, itemsToRender); return; }
     // ==================== 以上全部 return，不会走到下面的通用逻辑 ====================
 
     const q = _searchQuery.toLowerCase().trim();
@@ -1185,28 +1143,6 @@ function _showGroupEditor(group) {
     panel.querySelector('#ge-cancel').onclick = () => overlay.remove();
     overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
 
-    /*panel.querySelector('#ge-save').onclick = () => {
-        const name = panel.querySelector('#ge-name').value.trim();
-        if (!name) { showNotification('请输入分组名称', 'warning'); return; }
-        if (isNew) {
-            if (!window.customReplyGroups) window.customReplyGroups = [];
-            let initItems = [];
-            // 检查是不是从“快速分组”跳过来的
-            if (window._pendingQuickGroupItems && window._pendingQuickGroupItems.length > 0) {
-                initItems = window._pendingQuickGroupItems;
-                
-                // 【新增】既然建分组成功了，顺便把字卡加进主池子
-                const pendingTarget = window._pendingQuickGroupTarget;
-                if (pendingTarget) {
-                    initItems.forEach(item => {
-                        if (!pendingTarget.includes(item)) pendingTarget.push(item);
-                    });
-                    window._pendingQuickGroupTarget = null;
-                }
-                window._pendingQuickGroupItems = null; 
-            }
-        };
-    }*/
     panel.querySelector('#ge-save').onclick = () => {
         const name = panel.querySelector('#ge-name').value.trim();
         if (!name) {
@@ -1443,70 +1379,51 @@ function renderEmptyState(text) {
 }
 
 function _showExportUI() {
+    // 核心架构：导出前，提前把散落的公告碎片捏合成一个完整的大包裹
+    let announcementPackage = null;
+    if (window._dgCustomData || window._dgStatusPool) {
+        announcementPackage = {
+            ...JSON.parse(JSON.stringify(window._dgCustomData || {})), // 包含：顶部背景、中部装饰图、卡片内背景、文案
+            pool: JSON.parse(JSON.stringify(window._dgStatusPool || [])) // 包含：状态库
+        };
+    }
+
     const modules = [
-        { id: '_re_replies',  icon: ICONS.comment,   label: '主字卡',    count: customReplies.length,          key: 'customReplies' },
-        { id: '_re_pokes',    icon: ICONS.hand,      label: '拍一拍',    count: customPokes.length,            key: 'customPokes' },
-        { id: '_re_statuses', icon: ICONS.dot,       label: '对方状态',  count: customStatuses.length,         key: 'customStatuses' },
-        { id: '_re_mottos',   icon: ICONS.quote,     label: '顶部格言',  count: customMottos.length,           key: 'customMottos' },
-        { id: '_re_intros',   icon: ICONS.play,      label: '开场动画',  count: customIntros.length,           key: 'customIntros' },
-        { id: '_re_emojis',   icon: ICONS.smile,     label: 'Emoji 库',  count: customEmojis.length,           key: 'customEmojis' },
-        { id: '_re_groups',   icon: ICONS.folderBig, label: '字卡分组',  count: (customReplyGroups||[]).length, key: 'customReplyGroups', extra: true },
-        { id: '_re_stickers', icon: ICONS.sticker, label: '表情包', count: stickerLibrary.length, key: 'stickerLibrary', isMedia: true },
-        { id: '_re_callbg', icon: ICONS.play, label: '通话背景', count: callBgLibrary.length, key: 'callBgLibrary', isMedia: true },
-       // { id: '_re_period', icon: ICONS.hand, label: '月经关怀文案', count: (periodCareMessages?.approaching?.length||0)+(periodCareMessages?.during?.length||0)+(periodCareMessages?.delayed?.length||0), key: 'periodCareMessages', isMedia: false },
-    ];
+        { id: '_re_replies', icon: ICONS.comment, label: '主字卡', data: customReplies, key: 'customReplies' },
+        { id: '_re_pokes', icon: ICONS.hand, label: '拍一拍', data: customPokes, key: 'customPokes' },
+        { id: '_re_statuses', icon: ICONS.dot, label: '对方状态', data: customStatuses, key: 'customStatuses' },
+        { id: '_re_mottos', icon: ICONS.quote, label: '顶部格言', data: customMottos, key: 'customMottos' },
+        { id: '_re_intros', icon: ICONS.play, label: '开场动画', data: customIntros, key: 'customIntros' },
+        { id: '_re_emojis', icon: ICONS.smile, label: 'Emoji 库', data: customEmojis, key: 'customEmojis' },
+        { id: '_re_groups', icon: ICONS.folderBig, label: '字卡分组', data: customReplyGroups, key: 'customReplyGroups' },
+        { id: '_re_stickers', icon: ICONS.sticker, label: '表情包', data: stickerLibrary, key: 'stickerLibrary'},
+        { id: '_re_callbg', icon: ICONS.play, label: '通话背景', data: callBgLibrary, key: 'callBgLibrary'},
+        { id: '_re_dg', icon: ICONS.news, label: '公告管理', data: announcementPackage, key: 'announcementPackage' } // 界面上只显示这一个完整的公告
+    ].filter(m => m.data != null && (Array.isArray(m.data) ? m.data.length > 0 : Object.keys(m.data).length > 0));
 
     if (customReplyGroups && customReplyGroups.length > 0) {
         const overlay = _makeOverlay();
         const panel = document.createElement('div');
-        panel.style.cssText = `
-            background:var(--secondary-bg);border-radius:22px;padding:24px;
-            width:92%;max-width:380px;
-            box-shadow:0 24px 80px rgba(0,0,0,.45);
-            animation:popIn 0.22s cubic-bezier(.34,1.56,.64,1);
-        `;
+        panel.style.cssText = `background:var(--secondary-bg);border-radius:22px;padding:24px;width:92%;max-width:380px;box-shadow:0 24px 80px rgba(0,0,0,.45);animation:popIn 0.22s cubic-bezier(.34,1.56,.64,1);`;
         panel.innerHTML = `
             <style>@keyframes popIn{from{opacity:0;transform:scale(.93)}to{opacity:1;transform:scale(1)}}</style>
-            <div style="font-size:16px;font-weight:700;color:var(--text-primary);margin-bottom:6px;display:flex;align-items:center;gap:8px;">
-                ${ICONS.export} 导出方式
-            </div>
+            <div style="font-size:16px;font-weight:700;color:var(--text-primary);margin-bottom:6px;display:flex;align-items:center;gap:8px;">${ICONS.export} 导出方式</div>
             <div style="font-size:12px;color:var(--text-secondary);margin-bottom:18px;">请选择导出模式</div>
             <div style="display:flex;flex-direction:column;gap:10px;">
-                <button id="_exp_all_btn" style="
-                    display:flex;align-items:center;gap:12px;padding:14px 16px;
-                    border:1.5px solid var(--border-color);border-radius:14px;
-                    background:var(--primary-bg);cursor:pointer;text-align:left;transition:border-color 0.15s;
-                ">
+                <button id="_exp_all_btn" style="display:flex;align-items:center;gap:12px;padding:14px 16px;border:1.5px solid var(--border-color);border-radius:14px;background:var(--primary-bg);cursor:pointer;text-align:left;transition:border-color 0.15s;">
                     <div style="width:38px;height:38px;border-radius:10px;background:rgba(var(--accent-color-rgb),0.12);display:flex;align-items:center;justify-content:center;color:var(--accent-color);flex-shrink:0;">${ICONS.export}</div>
-                    <div>
-                        <div style="font-size:13px;font-weight:600;color:var(--text-primary);">选择性导出</div>
-                        <div style="font-size:11px;color:var(--text-secondary);margin-top:2px;">自由选择要导出的模块</div>
-                    </div>
+                    <div><div style="font-size:13px;font-weight:600;color:var(--text-primary);">选择性导出</div><div style="font-size:11px;color:var(--text-secondary);margin-top:2px;">自由选择要导出的模块</div></div>
                 </button>
-                <button id="_exp_group_btn" style="
-                    display:flex;align-items:center;gap:12px;padding:14px 16px;
-                    border:1.5px solid var(--border-color);border-radius:14px;
-                    background:var(--primary-bg);cursor:pointer;text-align:left;transition:border-color 0.15s;
-                ">
+                <button id="_exp_group_btn" style="display:flex;align-items:center;gap:12px;padding:14px 16px;border:1.5px solid var(--border-color);border-radius:14px;background:var(--primary-bg);cursor:pointer;text-align:left;transition:border-color 0.15s;">
                     <div style="width:38px;height:38px;border-radius:10px;background:rgba(var(--accent-color-rgb),0.12);display:flex;align-items:center;justify-content:center;color:var(--accent-color);flex-shrink:0;">${ICONS.folderBig}</div>
-                    <div>
-                        <div style="font-size:13px;font-weight:600;color:var(--text-primary);">分组字卡导出</div>
-                        <div style="font-size:11px;color:var(--text-secondary);margin-top:2px;">仅导出指定分组的字卡内容</div>
-                    </div>
+                    <div><div style="font-size:13px;font-weight:600;color:var(--text-primary);">分组字卡导出</div><div style="font-size:11px;color:var(--text-secondary);margin-top:2px;">仅导出指定分组的字卡内容</div></div>
                 </button>
             </div>
-            <button id="_exp_cancel_btn" style="
-                width:100%;margin-top:14px;padding:12px;border:1.5px solid var(--border-color);
-                border-radius:13px;background:none;color:var(--text-secondary);
-                font-size:13px;cursor:pointer;font-family:var(--font-family);
-            ">取消</button>
-        `;
+            <button id="_exp_cancel_btn" style="width:100%;margin-top:14px;padding:12px;border:1.5px solid var(--border-color);border-radius:13px;background:none;color:var(--text-secondary);font-size:13px;cursor:pointer;font-family:var(--font-family);">取消</button>`;
         overlay.appendChild(panel);
         document.body.appendChild(overlay);
-
         panel.querySelector('#_exp_cancel_btn').onclick = () => overlay.remove();
         overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
-
         panel.querySelector('#_exp_all_btn').onclick = () => {
             overlay.remove();
             _showIOSheet('导出字卡', '选择要导出的模块', modules, ICONS.export, (selected) => {
@@ -1514,154 +1431,95 @@ function _showExportUI() {
                 _doExport(selected);
             });
         };
-
-        panel.querySelector('#_exp_group_btn').onclick = () => {
-            overlay.remove();
-            _showGroupExportPicker();
-        };
+        panel.querySelector('#_exp_group_btn').onclick = () => { overlay.remove(); _showGroupExportPicker(); };
         return;
     }
-
     _showIOSheet('导出字卡', '选择要导出的模块', modules, ICONS.export, (selected) => {
         if (!selected.length) { showNotification('请至少选择一项', 'error'); return; }
         _doExport(selected);
     });
 }
 
-/*function _doExport(selectedModules) {
-    const libraryData = { exportDate: new Date().toISOString(), modules: [] };
-    selectedModules.forEach(m => {
-        if (m.key === 'customReplies')       { libraryData.customReplies = customReplies; libraryData.modules.push('replies'); }
-        else if (m.key === 'customPokes')    { libraryData.customPokes = customPokes; libraryData.modules.push('pokes'); }
-        else if (m.key === 'customStatuses') { libraryData.customStatuses = customStatuses; libraryData.modules.push('statuses'); }
-        else if (m.key === 'customMottos')   { libraryData.customMottos = customMottos; libraryData.modules.push('mottos'); }
-        else if (m.key === 'customIntros')   { libraryData.customIntros = customIntros; libraryData.modules.push('intros'); }
-        else if (m.key === 'customEmojis')   { libraryData.customEmojis = customEmojis; libraryData.modules.push('emojis'); }
-        else if (m.key === 'customReplyGroups') { libraryData.customReplyGroups = customReplyGroups; libraryData.modules.push('groups'); }
-    });
-    const fileName = `reply-library-${libraryData.modules.join('+')}-${new Date().toISOString().slice(0,10)}.json`;
-    exportDataToMobileOrPC(JSON.stringify(libraryData, null, 2), fileName);
-    showNotification('✓ 字卡导出成功', 'success');
-}*/
 function _doExport(selectedModules) {
-  // 1. 检查是否选中了包含大文件（表情/背景）的模块
     const hasMediaModules = selectedModules.some(m => m.isMedia);
+    let payload = { exportDate: new Date().toISOString(), modules: [] };
+    let zip = null, mediaStore = {}, mediaCount = 0;
 
     if (hasMediaModules && typeof JSZip !== 'undefined') {
-        // ========== 走 ZIP 独立打包逻辑（防 JSON 撑爆） ==========
-        const zip = new JSZip();
-        const mediaStore = {};
-        const dataPayload = { exportDate: new Date().toISOString(), modules: [] };
-        let mediaCount = 0;
+        zip = new JSZip();
+    }
 
-        // 辅助函数：抽离 Base64 媒体
-        const extractMedia = (item) => {
-            if (typeof item === 'string' && item.length > 800 && /^data:(image|video)\//i.test(item)) {
+    const extractMedia = (item) => {
+        if (typeof item === 'string' && item.length > 800 && /^data:(image|video)\//i.test(item)) {
             const id = 'm' + mediaCount++;
             mediaStore[id] = item;
             return { __mRef: id };
-            }
-            return item;
-         };
+        }
+        return item;
+    };
 
-        selectedModules.forEach(m => {
-            if (m.key === 'stickerLibrary') {
-            dataPayload.stickerLibrary = stickerLibrary.map(extractMedia);
-            dataPayload.modules.push('stickers');
-            } else if (m.key === 'callBgLibrary') {
-            dataPayload.callBgLibrary = callBgLibrary.map(bg => ({ ...bg, src: extractMedia(bg.src) }));
-            dataPayload.modules.push('callbg');
-            }else if (m.key === 'periodCareMessages') {
-                // 导入时，直接把月经文案平铺合并进主字卡池
-                if (data.periodCareMessages) {
-                    const allCareMsgs = [
-                        ...(data.periodCareMessages.approaching || []),
-                        ...(data.periodCareMessages.during || []),
-                        ...(data.periodCareMessages.delayed || [])
-                    ];
-                    let addedCount = 0;
-                    allCareMsgs.forEach(msg => {
-                        // 去重：如果主字卡里已经有了，或者和默认字卡重复了，就不加
-                        const isDuplicate = customReplies.includes(msg) || (typeof CONSTANTS !== 'undefined' && CONSTANTS.REPLY_MESSAGES && CONSTANTS.REPLY_MESSAGES.includes(msg));
-                        if (!isDuplicate) {
-                            customReplies.push(msg);
-                            addedCount++;
-                        }
-                    });
-                    // 把实际增加的数量加到总统计里，让底部的提示准确
-                    totalAdded += addedCount;
-                }
-            } else if (m.key === 'customReplies') {
-            dataPayload.customReplies = customReplies;
-            dataPayload.modules.push('replies');
-            } else if (m.key === 'customPokes') {
-            dataPayload.customPokes = customPokes;
-            dataPayload.modules.push('pokes');
-            } else if (m.key === 'customStatuses') {
-            dataPayload.customStatuses = customStatuses;
-            dataPayload.modules.push('statuses');
-            } else if (m.key === 'customMottos') {
-            dataPayload.customMottos = customMottos;
-            dataPayload.modules.push('mottos');
-            } else if (m.key === 'customIntros') {
-            dataPayload.customIntros = customIntros;
-            dataPayload.modules.push('intros');
-            } else if (m.key === 'customEmojis') {
-            dataPayload.customEmojis = customEmojis;
-            dataPayload.modules.push('emojis');
-            } else if (m.key === 'customReplyGroups') {
-            dataPayload.customReplyGroups = customReplyGroups;
-            dataPayload.modules.push('groups');
-            }
-        });
+    // 统一源头映射
+   /*   const sourceMap = {
+        'customReplies': customReplies,
+        'customPokes': customPokes,
+        'customStatuses': customStatuses,
+        'customMottos': customMottos,
+        'customIntros': customIntros,
+        'customEmojis': customEmojis,
+        'customReplyGroups': customReplyGroups,
+        'stickerLibrary': stickerLibrary,
+        'callBgLibrary': callBgLibrary,
+        'announcementPackage': null // 公告由上面传进来的完整包裹直接处理
+    };*/
+    const sourceMap = {
+        'customReplies': customReplies,
+        'customPokes': customPokes,
+        'customStatuses': customStatuses,
+        'customMottos': customMottos,
+        'customIntros': customIntros,
+        'customEmojis': customEmojis,
+        'customReplyGroups': customReplyGroups,
+        // 🔥 根治：这三个大块头，必须且只能从媒体柜拿真数据，杜绝内存污染
+        'stickerLibrary': (typeof DB_GATEWAY !== 'undefined') ? DB_GATEWAY.getMedia('stickerLibrary') : window.stickerLibrary,
+        'myStickerLibrary': (typeof DB_GATEWAY !== 'undefined') ? DB_GATEWAY.getMedia('myStickerLibrary') : window.myStickerLibrary,
+        'callBgLibrary': (typeof DB_GATEWAY !== 'undefined') ? DB_GATEWAY.getMedia('callBgLibrary') : window.callBgLibrary,
+        'announcementPackage': null 
+    };
 
-        // 把图片塞进 ZIP 的 media/ 目录
+
+    selectedModules.forEach(m => {
+        let rawData = (m.key === 'announcementPackage') ? m.data : sourceMap[m.key];
+        if (rawData === undefined) return;
+        payload[m.key] = JSON.parse(JSON.stringify(rawData));
+        payload.modules.push(m.key);
+    });
+
+    if (zip) {
         for (const id in mediaStore) {
             const url = mediaStore[id];
             const m = /^data:([^,]+),([\s\S]*)$/.exec(url);
             if (m) {
-                const mime = m[1].split(';')[0];
                 const isB64 = /;base64/i.test(m[1]);
                 let bytes;
-                if (isB64) {
-                    const binary = atob(m[2].replace(/\s/g, ''));
-                    bytes = new Uint8Array(binary.length);
-                    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-                } else {
-                    bytes = new TextEncoder().encode(decodeURIComponent(m[2]));
-                }
+                if (isB64) { const binary = atob(m[2].replace(/\s/g, '')); bytes = new Uint8Array(binary.length); for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i); }
+                else { bytes = new TextEncoder().encode(decodeURIComponent(m[2])); }
                 zip.file('media/' + id, bytes, { binary: true });
             }
         }
-
-        zip.file('data.json', '\uFEFF' + JSON.stringify(dataPayload));
-      
+        zip.file('data.json', '\uFEFF' + JSON.stringify(payload));
         zip.generateAsync({ type: 'blob', compression: 'DEFLATE' }).then(blob => {
-            const fileName = `library-${dataPayload.modules.join('+')}-${new Date().toISOString().slice(0,10)}.zip`;
+            const fileName = `library-${payload.modules.join('+')}-${new Date().toISOString().slice(0,10)}.zip`;
             if (typeof exportDataToMobileOrPC === 'function') exportDataToMobileOrPC(blob, fileName);
             else { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = fileName; a.click(); }
-            showNotification('✓ 已打包为 ZIP 导出（图片安全分离）', 'success');
-        }).catch(() => showNotification('ZIP 打包失败', 'error'));  
+            showNotification('✓ 已打包为 ZIP 导出', 'success');
+        }).catch(() => showNotification('ZIP 打包失败', 'error'));
         return;
     }
 
-  // ========== 原有的纯文本 JSON 导出逻辑（原封不动保留） ==========
-    const libraryData = { exportDate: new Date().toISOString(), modules: [] };
-    selectedModules.forEach(m => {
-        if (m.key === 'customReplies') { libraryData.customReplies = customReplies; libraryData.modules.push('replies'); }
-        else if (m.key === 'customPokes') { libraryData.customPokes = customPokes; libraryData.modules.push('pokes'); }
-        else if (m.key === 'customStatuses') { libraryData.customStatuses = customStatuses; libraryData.modules.push('statuses'); }
-        else if (m.key === 'customMottos') { libraryData.customMottos = customMottos; libraryData.modules.push('mottos'); }
-        else if (m.key === 'customIntros') { libraryData.customIntros = customIntros; libraryData.modules.push('intros'); }
-        else if (m.key === 'customEmojis') { libraryData.customEmojis = customEmojis; libraryData.modules.push('emojis'); }
-        else if (m.key === 'customReplyGroups') { libraryData.customReplyGroups = customReplyGroups; libraryData.modules.push('groups'); }
-       // else if (m.key === 'periodCareMessages') { libraryData.periodCareMessages = periodCareMessages; libraryData.modules.push('period'); }
-    });
-    const fileName = `reply-library-${libraryData.modules.join('+')}-${new Date().toISOString().slice(0,10)}.json`;
-    exportDataToMobileOrPC(JSON.stringify(libraryData, null, 2), fileName);
+    const fileName = `reply-library-${payload.modules.join('+')}-${new Date().toISOString().slice(0,10)}.json`;
+    exportDataToMobileOrPC(JSON.stringify(payload, null, 2), fileName);
     showNotification('✓ 导出成功', 'success');
 }
-
 
 function _showGroupExportPicker() {
     const overlay = _makeOverlay();
@@ -1735,7 +1593,7 @@ function _showGroupExportPicker() {
     };
 }
 
-/**
+/*
  * 宽容JSON解析器：自动修复常见语法问题（尾随逗号、缺失逗号等）
  */
 function _parseFlexibleJSON(text) {
@@ -1755,7 +1613,7 @@ function _parseFlexibleJSON(text) {
     return JSON.parse(repaired);
 }
 
-/**
+/*
  * 旧格式兼容转换：将旧版导出的字卡文件规范化为当前格式
  * 旧格式特征：有 exportDate 或 modules 字段
  * 新格式特征：有 version 字段
@@ -1774,107 +1632,131 @@ function _normalizeImportData(data) {
 }
 
 function _showImportUI(data) {
-    const knownFields = ['customReplies','customPokes','customStatuses','customMottos','customIntros','customEmojis','customReplyGroups'];
-    const hasValid = knownFields.some(f => Array.isArray(data[f]));
-    if (!hasValid) { showNotification('无效的字卡备份文件', 'error'); return; }
-
     const modules = [
-        { id: '_ri_replies',  icon: ICONS.comment,   label: '主字卡',    data: data.customReplies,     key: 'customReplies' },
-        { id: '_ri_pokes',    icon: ICONS.hand,      label: '拍一拍',    data: data.customPokes,       key: 'customPokes' },
-        { id: '_ri_statuses', icon: ICONS.dot,       label: '对方状态',  data: data.customStatuses,    key: 'customStatuses' },
-        { id: '_ri_mottos',   icon: ICONS.quote,     label: '顶部格言',  data: data.customMottos,      key: 'customMottos' },
-        { id: '_ri_intros',   icon: ICONS.play,      label: '开场动画',  data: data.customIntros,      key: 'customIntros' },
-        { id: '_ri_emojis',   icon: ICONS.smile,     label: 'Emoji 库',  data: data.customEmojis,      key: 'customEmojis' },
-        { id: '_ri_groups',   icon: ICONS.folderBig, label: '字卡分组',  data: data.customReplyGroups, key: 'customReplyGroups', extra: true },
+        { id: '_ri_replies', icon: ICONS.comment, label: '主字卡', data: data.customReplies, key: 'customReplies' },
+        { id: '_ri_pokes', icon: ICONS.hand, label: '拍一拍', data: data.customPokes, key: 'customPokes' },
+        { id: '_ri_statuses', icon: ICONS.dot, label: '对方状态', data: data.customStatuses, key: 'customStatuses' },
+        { id: '_ri_mottos', icon: ICONS.quote, label: '顶部格言', data: data.customMottos, key: 'customMottos' },
+        { id: '_ri_intros', icon: ICONS.play, label: '开场动画', data: data.customIntros, key: 'customIntros' },
+        { id: '_ri_emojis', icon: ICONS.smile, label: 'Emoji 库', data: data.customEmojis, key: 'customEmojis' },
+        { id: '_ri_groups', icon: ICONS.folderBig, label: '字卡分组', data: data.customReplyGroups, key: 'customReplyGroups' },
         { id: '_ri_stickers', icon: ICONS.sticker, label: '表情包', data: data.stickerLibrary, key: 'stickerLibrary' },
         { id: '_ri_callbg', icon: ICONS.play, label: '通话背景', data: data.callBgLibrary, key: 'callBgLibrary' },
-       // { id: '_ri_period', icon: ICONS.hand, label: '月经关怀文案', data: data.periodCareMessages, key: 'periodCareMessages' },
-    ].filter(m => Array.isArray(m.data));
+        { id: '_ri_dg', icon: ICONS.news, label: '公告管理', data: data.announcementPackage, key: 'announcementPackage' }
+    ].filter(m => m.data != null && (Array.isArray(m.data) ? m.data.length > 0 : Object.keys(m.data).length > 0));
+
+    if (modules.length === 0) {
+        showNotification('文件中未找到可识别的模块数据', 'error');
+        return;
+    }
 
     _showIOSheet(`导入字卡`, `文件中包含 ${modules.length} 个模块`, modules, ICONS.import, (selected, mode) => {
         if (!selected.length) { showNotification('请至少选择一项', 'error'); return; }
         try {
             const overwrite = mode === 'overwrite';
             let totalAdded = 0;
-            if (overwrite) {
-                selected.forEach(m => {
-                    if (m.key === 'customReplies') { customReplies = data.customReplies; totalAdded += data.customReplies.length; }
-                    else if (m.key === 'customPokes') { customPokes = data.customPokes; totalAdded += data.customPokes.length; }
-                    else if (m.key === 'customStatuses') { customStatuses = data.customStatuses; totalAdded += data.customStatuses.length; }
-                    else if (m.key === 'customMottos') { customMottos = data.customMottos; totalAdded += data.customMottos.length; }
-                    else if (m.key === 'customIntros') { customIntros = data.customIntros; totalAdded += data.customIntros.length; }
-                    else if (m.key === 'customEmojis') { customEmojis = data.customEmojis; }
-                    else if (m.key === 'customReplyGroups') { window.customReplyGroups = data.customReplyGroups; }
-                });
-            } else {
-                selected.forEach(m => {
-                    if (m.key === 'customReplies') {
-                        const before = customReplies.length;
-                        customReplies = deduplicateContentArray([...customReplies, ...data.customReplies], CONSTANTS.REPLY_MESSAGES).result;
-                        totalAdded += customReplies.length - before;
-                    } else if (m.key === 'customPokes') {
-                        const before = customPokes.length;
-                        customPokes = deduplicateContentArray([...customPokes, ...data.customPokes]).result;
-                        totalAdded += customPokes.length - before;
-                    } else if (m.key === 'customStatuses') {
-                        const before = customStatuses.length;
-                        customStatuses = deduplicateContentArray([...customStatuses, ...data.customStatuses]).result;
-                        totalAdded += customStatuses.length - before;
-                    } else if (m.key === 'customMottos') {
-                        const before = customMottos.length;
-                        customMottos = deduplicateContentArray([...customMottos, ...data.customMottos]).result;
-                        totalAdded += customMottos.length - before;
-                    } else if (m.key === 'customIntros') {
-                        const before = customIntros.length;
-                        customIntros = deduplicateContentArray([...customIntros, ...data.customIntros]).result;
-                        totalAdded += customIntros.length - before;
-                    } else if (m.key === 'customEmojis') {
-                        customEmojis = [...new Set([...customEmojis, ...data.customEmojis])];
-                    } else if (m.key === 'customReplyGroups') {
+
+            selected.forEach(m => {
+                const importedRaw = data[m.key];
+                if (!importedRaw) return;
+
+                // === 核心逻辑：遇到公告大包裹，直接拆包各回各家 ===
+                if (m.key === 'announcementPackage') {
+                    const pkg = importedRaw;
+                    if (overwrite) {
+                        // 覆盖模式：文案和图直接整体替换
+                        window._dgCustomData = JSON.parse(JSON.stringify(pkg));
+                        // 状态库整体替换
+                        window._dgStatusPool = JSON.parse(JSON.stringify(pkg.pool || []));
+                    } else {
+                        // 追加模式：图文按规矩拼装，缺图补图
+                        const exist = window._dgCustomData || {};
+                        exist.titles = [...new Set([...(exist.titles || []), ...(pkg.titles || [])])];
+                        exist.notes = [...new Set([...(exist.notes || []), ...(pkg.notes || [])])];
+                        if (!exist.decoImg && pkg.decoImg) exist.decoImg = pkg.decoImg;
+                        if (!exist.headerImg && pkg.headerImg) exist.headerImg = pkg.headerImg;
+                        if (!exist.overlayBg && pkg.overlayBg) exist.overlayBg = pkg.overlayBg;
+                        if (pkg.overlayOpacity !== undefined && exist.overlayOpacity === undefined) exist.overlayOpacity = pkg.overlayOpacity;
+                        window._dgCustomData = exist;
+                        
+                        // 状态库追加去重
+                        const existPool = window._dgStatusPool || [];
+                        (pkg.pool || []).forEach(item => { if (!existPool.some(p => p.status === item.status && p.label === item.label)) existPool.push(item); });
+                        window._dgStatusPool = existPool;
+                    }
+                    totalAdded += (pkg.titles?.length || 0) + (pkg.notes?.length || 0) + (pkg.pool?.length || 0);
+                    return; // 处理完公告直接结束当前循环，不走后面的普通数组逻辑
+                }
+
+                // === 普通模块逻辑 ===
+                if (overwrite) {
+                    if (m.key === 'customReplyGroups') {
+                        window.customReplyGroups = JSON.parse(JSON.stringify(importedRaw));
+                    } else {
+                        window[m.key] = JSON.parse(JSON.stringify(importedRaw));
+                    }
+                    totalAdded += Array.isArray(importedRaw) ? importedRaw.length : (importedRaw.titles?.length || 0) + (importedRaw.notes?.length || 0);
+                } else {
+                    if (m.key === 'customReplyGroups') {
                         if (!window.customReplyGroups) window.customReplyGroups = [];
-                        data.customReplyGroups.forEach(dg => {
-                            if (!customReplyGroups.find(g => g.name === dg.name)) customReplyGroups.push(dg);
+                        importedRaw.forEach(dg => { if (!customReplyGroups.find(g => g.name === dg.name)) customReplyGroups.push(dg); });
+                    } else if (m.key === 'customEmojis' || m.key === 'stickerLibrary') {
+                        window[m.key] = [...new Set([...(window[m.key] || []), ...importedRaw])];
+                        totalAdded += importedRaw.length;
+                    } 
+                    /*else if (m.key === 'callBgLibrary') {
+                        const existArr = window.callBgLibrary || [];
+                        const existIds = new Set(existArr.map(item => item.id));
+                        importedRaw.forEach(item => {
+                            if (!existIds.has(item.id)) {
+                                existArr.push(item);
+                                existIds.add(item.id);
+                            }
                         });
-                    } else if (m.key === 'customReplyGroups') {
-                    window.customReplyGroups = data.customReplyGroups;
+                        window.callBgLibrary = existArr;
+                        totalAdded += importedRaw.length;
+                    } */
+                    else if (m.key === 'callBgLibrary') { 
+                        // 纯字符串数组，直接合并去重
+                        window.callBgLibrary = [...new Set([...(window.callBgLibrary || []), ...importedRaw])]; 
+                        totalAdded += importedRaw.length; 
                     }
-                    else if (m.key === 'stickerLibrary') {
-                        stickerLibrary = overwrite ? data.stickerLibrary : [...new Set([...stickerLibrary, ...data.stickerLibrary])];
-                        totalAdded += data.stickerLibrary.length;
-                    } else if (m.key === 'callBgLibrary') {
-                        callBgLibrary = overwrite ? data.callBgLibrary : [...callBgLibrary, ...data.callBgLibrary];
-                        totalAdded += data.callBgLibrary.length;
+                    else {
+                        const before = (window[m.key] || []).length;
+                        const compareArr = m.key === 'customReplies' ? [...(window[m.key] || []), ...(CONSTANTS.REPLY_MESSAGES || [])] : (window[m.key] || []);
+                        window[m.key] = deduplicateContentArray([...(window[m.key] || []), ...importedRaw], compareArr).result;
+                        totalAdded += (window[m.key] || []).length - before;
                     }
-                    // 👇 就是这段！拦截上司送来的小房间数据，强塞大客厅 👇
-                    else if (m.key === 'periodCareMessages') {
-                        const importedCareData = data.periodCareMessages;
-                        if (importedCareData) {
-                            const pHallway = [
-                                ...(importedCareData.approaching || []),
-                                ...(importedCareData.during || []),
-                                ...(importedCareData.delayed || [])
-                            ];
-                            pHallway.forEach(person => {
-                                if (!customReplies.includes(person)) {
-                                    customReplies.push(person);
-                                    totalAdded++;
-                                }
-                            });
+                    // ==========================================
+                    // 🔥 终极根治：导入后强制把这三个大块头按回媒体柜
+                    // 防止只存在内存里，一刷新就全丢了
+                    // ==========================================
+                    if (['stickerLibrary', 'myStickerLibrary', 'callBgLibrary'].includes(m.key)) {
+                        if (typeof DB_GATEWAY !== 'undefined') {
+                            DB_GATEWAY.setMedia(m.key, window[m.key]);
                         }
                     }
-                    // 👇 新增以下导入逻辑 👇
-                    else if (m.key === 'stickerLibrary') {
-                    stickerLibrary = overwrite ? data.stickerLibrary : [...new Set([...stickerLibrary, ...data.stickerLibrary])];
-                    totalAdded += data.stickerLibrary.length;
-                    } else if (m.key === 'callBgLibrary') {
-                    callBgLibrary = overwrite ? data.callBgLibrary : [...callBgLibrary, ...data.callBgLibrary];
-                    totalAdded += data.callBgLibrary.length;
-                    totalAdded += (data.periodCareMessages?.approaching?.length||0) + (data.periodCareMessages?.during?.length||0) + (data.periodCareMessages?.delayed?.length||0);
-                    }
-                });
-            }
+
+                }
+            });
+
             throttledSaveData();
+            // 强制同步：把全局变量里的新数据，死死绑定到系统真正在用的局部变量上
+            if (typeof customReplies !== 'undefined') customReplies = window.customReplies || customReplies;
+            if (typeof customPokes !== 'undefined') customPokes = window.customPokes || customPokes;
+            if (typeof customStatuses !== 'undefined') customStatuses = window.customStatuses || customStatuses;
+            if (typeof customMottos !== 'undefined') customMottos = window.customMottos || customMottos;
+            if (typeof customIntros !== 'undefined') customIntros = window.customIntros || customIntros;
+            if (typeof customEmojis !== 'undefined') customEmojis = window.customEmojis || customEmojis;
+            if (typeof customReplyGroups !== 'undefined') customReplyGroups = window.customReplyGroups || customReplyGroups;
+            if (typeof stickerLibrary !== 'undefined') stickerLibrary = window.stickerLibrary || stickerLibrary;
+            if (typeof callBgLibrary !== 'undefined') callBgLibrary = window.callBgLibrary || callBgLibrary;
+
             if (typeof renderReplyLibrary === 'function') renderReplyLibrary();
+            // 导入后直接刷新公告页面，不用你手动点
+            if (selected.some(m => m.key === 'announcementPackage')) {
+                if (typeof window.switchToAnnouncementPanel === 'function') window.switchToAnnouncementPanel();
+            }
             showNotification(`✓ 导入成功（${overwrite ? '覆盖' : '追加'}）${totalAdded > 0 ? `，共 ${totalAdded} 条` : ''}`, 'success', 3000);
         } catch (err) {
             console.error('字卡导入失败:', err);
@@ -1948,7 +1830,8 @@ function _showIOSheet(title, subtitle, modules, icon, onConfirm, showMode = fals
                         <div class="io-icon-box">${m.icon}</div>
                         <div style="flex:1;">
                             <div style="font-size:13px;font-weight:600;color:var(--text-primary);">${m.label}</div>
-                            <div style="font-size:11px;color:var(--text-secondary);">${m.data ? m.data.length : m.count} 条${m.extra ? ' · 含分组结构' : ''}</div>
+                            <!--<div style="font-size:11px;color:var(--text-secondary);">${m.data ? m.data.length : m.count} 条${m.extra ? ' · 含分组结构' : ''}</div>-->
+                            <div style="font-size:11px;color:var(--text-secondary);">${Array.isArray(m.data) ? m.data.length : (m.data ? Object.keys(m.data).length : 0)} 条</div>
                         </div>
                         <div class="io-toggle off" data-id="${m.id}"><div class="knob"></div></div>
                         <input type="checkbox" id="${m.id}" style="display:none;">
@@ -1980,25 +1863,6 @@ function _showIOSheet(title, subtitle, modules, icon, onConfirm, showMode = fals
         </div>
     `;
     document.body.appendChild(overlay);
-
-    /*overlay.querySelectorAll('.io-toggle').forEach(sw => {
-        sw.onclick = () => {
-            const cb = document.getElementById(sw.dataset.id);
-            cb.checked = !cb.checked;
-            sw.classList.toggle('off', !cb.checked);
-        };
-    });*/
-
-   // const close = () => { overlay.style.animation = 'fadeOut 0.15s ease forwards'; setTimeout(() => overlay.remove(), 150); };
-   /* const close = () => {
-        overlay.style.animation = 'fadeOut 0.15s ease forwards';
-        setTimeout(() => {
-            // ✨ 添加：恢复 body 滚动和移除监听
-            document.body.style.overflow = originalOverflow;
-            overlay.removeEventListener('touchmove', preventScroll);
-            overlay.remove();
-        }, 150);
-    };*/
    
   // ===== 统一绑定所有开关和按钮逻辑 =====
   const selectAllBtn = overlay.querySelector('#_io_select_all');
@@ -2314,46 +2178,45 @@ function _showBatchAddDialog() {
 function initReplyLibraryListeners() {
     const entryBtn = document.getElementById('custom-replies-function');
     if (entryBtn) {
-    entryBtn.addEventListener('click', () => {
-        hideModal(DOMElements.advancedModal.modal);
-        
-        // 1. 强制重置 JS 状态变量
-        currentMajorTab = 'reply';
-        currentSubTab = 'custom';
-        _batchModeActive = false;
-        _batchSelectedIndices.clear();
-        _searchVisible = false;
-        _searchQuery = '';
-        _activeGroupFilter = null;
-        
-        // 2. 🔥 新增：强制重置侧边栏按钮的高亮状态，防止状态脱节
-        document.querySelectorAll('.sidebar-btn').forEach(b => {
-        b.classList.toggle('active', b.dataset.major === 'reply');
+        entryBtn.addEventListener('click', () => {
+            hideModal(DOMElements.advancedModal.modal);
+            
+            // 1. 强制重置 JS 状态变量
+            currentMajorTab = 'reply';
+            currentSubTab = 'custom';
+            _batchModeActive = false;
+            _batchSelectedIndices.clear();
+            _searchVisible = false;
+            _searchQuery = '';
+            _activeGroupFilter = null;
+            
+            // 2. 🔥 新增：强制重置侧边栏按钮的高亮状态，防止状态脱节
+            document.querySelectorAll('.sidebar-btn').forEach(b => {
+            b.classList.toggle('active', b.dataset.major === 'reply');
+            });
+
+            // 3. 🔥 新增：强制清理所有可能被上次操作遗留的 DOM 显示状态！
+            const listArea = document.getElementById('custom-replies-list');
+            const annPanel = document.getElementById('announcement-panel');
+            const crToolbar = document.getElementById('cr-toolbar');
+            const subTabs = document.getElementById('cr-sub-tabs');
+            const addBtn = document.getElementById('add-custom-reply');
+            const dynamicToolbar = document.getElementById('batch-ops-toolbar');
+            
+            if (listArea) listArea.style.display = '';     // 确保字卡列表显示
+            if (annPanel) annPanel.style.display = 'none'; // 确保公告面板隐藏
+            if (crToolbar) crToolbar.style.display = '';   // 确保工具栏显示
+            if (subTabs) subTabs.style.display = '';       // 确保子Tab显示
+            if (addBtn) addBtn.style.display = '';         // 确保添加按钮显示
+            if (dynamicToolbar) dynamicToolbar.remove();   // 直接删掉旧的动态工具栏，让 renderReplyLibrary 重新生成，最干净！
+
+            // 4. 重新渲染标准字卡视图
+            renderReplyLibrary();
+            
+            // 5. 最后显示模态框
+            showModal(DOMElements.customRepliesModal.modal);
         });
-
-        // 3. 🔥 新增：强制清理所有可能被上次操作遗留的 DOM 显示状态！
-        const listArea = document.getElementById('custom-replies-list');
-        const annPanel = document.getElementById('announcement-panel');
-        const crToolbar = document.getElementById('cr-toolbar');
-        const subTabs = document.getElementById('cr-sub-tabs');
-        const addBtn = document.getElementById('add-custom-reply');
-        const dynamicToolbar = document.getElementById('batch-ops-toolbar');
-        
-        if (listArea) listArea.style.display = '';     // 确保字卡列表显示
-        if (annPanel) annPanel.style.display = 'none'; // 确保公告面板隐藏
-        if (crToolbar) crToolbar.style.display = '';   // 确保工具栏显示
-        if (subTabs) subTabs.style.display = '';       // 确保子Tab显示
-        if (addBtn) addBtn.style.display = '';         // 确保添加按钮显示
-        if (dynamicToolbar) dynamicToolbar.remove();   // 直接删掉旧的动态工具栏，让 renderReplyLibrary 重新生成，最干净！
-
-        // 4. 重新渲染标准字卡视图
-        renderReplyLibrary();
-        
-        // 5. 最后显示模态框
-        showModal(DOMElements.customRepliesModal.modal);
-    });
     }
-
 
     document.querySelectorAll('.sidebar-btn').forEach(btn => {
         btn.addEventListener('click', () => {
@@ -2380,7 +2243,8 @@ function initReplyLibraryListeners() {
                 if (subTabs) subTabs.style.display = 'none';
                 if (addBtn) addBtn.style.display = 'none';
                 if (titleEl) titleEl.textContent = '公告管理';
-                // 不调用 renderReplyLibrary，因为公告有独立渲染逻辑
+                // 不调用 
+                if (typeof window.switchToAnnouncementPanel === 'function') window.switchToAnnouncementPanel(); 
             } else {
                 // 如果是字卡/氛围等其他页面：
                 if (listArea) listArea.style.display = '';
@@ -2496,7 +2360,7 @@ function initReplyLibraryListeners() {
    const addBtn = document.getElementById('add-custom-reply');
     if (addBtn) {
         addBtn.addEventListener('click', () => {
-            if (currentSubTab === 'callbg') {
+            /*if (currentSubTab === 'callbg') {
                 let cbgInput = document.getElementById('callbg-file-input');
                 if (!cbgInput) {
                     cbgInput = document.createElement('input');
@@ -2516,7 +2380,77 @@ function initReplyLibraryListeners() {
                 };
                 setTimeout(() => { cbgInput.click(); }, 50);
                 return;
+            }*/
+            if (currentSubTab === 'callbg') {
+                let cbgInput = document.getElementById('callbg-file-input');
+                if (!cbgInput) {
+                    cbgInput = document.createElement('input');
+                    cbgInput.id = 'callbg-file-input';
+                    cbgInput.type = 'file';
+                    cbgInput.accept = 'image/jpeg,image/png,image/gif,video/mp4,video/webm';
+                    cbgInput.style.display = 'none';
+                    document.body.appendChild(cbgInput);
+                }
+                cbgInput.onchange = (ev) => {
+                    const file = ev.target.files && ev.target.files[0];
+                    if (!file) return;
+                    
+                    const isImage = file.type.startsWith('image/');
+                    const isVideo = file.type.startsWith('video/');
+                    if (!isImage && !isVideo) { showNotification('仅支持图片或视频', 'error'); return; }
+                    if (file.size > 50 * 1024 * 1024) { showNotification('文件不能超过 50MB', 'error'); return; }
+
+                    // 如果是视频，走直接 Base64 存储逻辑
+                   /* if (isVideo) {
+                        const tempVideo = document.createElement('video');
+                        tempVideo.preload = 'metadata';
+                        tempVideo.onloadedmetadata = () => {
+                            if (tempVideo.duration > 120) { showNotification('视频不能超过 120 秒', 'error'); URL.revokeObjectURL(tempVideo.src); return; }
+                            URL.revokeObjectURL(tempVideo.src);
+                            const reader = new FileReader();
+                            reader.onload = (e) => {
+                                if (!callBgLibrary) callBgLibrary = [];
+                                const id = 'cbg_' + Date.now() + Math.random().toString(36).substr(2, 4);
+                                callBgLibrary.push({ id, type: 'video', src: e.target.result });
+                                activeCallBg = id;
+                                localStorage.setItem('activeCallBg', activeCallBg);
+                                if (typeof DB_GATEWAY !== 'undefined') DB_GATEWAY.set('callBgLibrary', callBgLibrary);
+                                else if (typeof throttledSaveData === 'function') throttledSaveData();
+                                const listContainer = document.getElementById('custom-replies-list');
+                                if (listContainer) _renderCallBgTab(listContainer, callBgLibrary);
+                                if (typeof callFeature !== 'undefined' && typeof callFeature.applyBg === 'function') callFeature.applyBg();
+                                showNotification('背景添加成功', 'success');
+                            };
+                            reader.readAsDataURL(file);
+                        };
+                        tempVideo.onerror = () => { showNotification('视频不兼容', 'error'); URL.revokeObjectURL(tempVideo.src); };
+                        tempVideo.src = URL.createObjectURL(file);
+                    } */
+                    // 如果是图片/GIF，走大部队的标准压缩流程
+                    /*else*/
+                    if (typeof optimizeImage === 'function') {
+                        showNotification('正在处理图片...', 'info', 1500);
+                        optimizeImage(file).then(base64Str => {
+                            if (!callBgLibrary) callBgLibrary = [];
+                            // 不再需要生成随机 id
+                            callBgLibrary.push(base64Str); // 直接推入字符串
+                            
+                            // 🌟 核心修复：直接将 Base64 字符串设为当前激活背景
+                            activeCallBg = base64Str; 
+                            localStorage.setItem('activeCallBg', activeCallBg);
+                            
+                            const listContainer = document.getElementById('custom-replies-list');
+                            if (listContainer) _renderCallBgTab(listContainer, callBgLibrary);
+                            if (typeof callFeature !== 'undefined' && typeof callFeature.applyBg === 'function') callFeature.applyBg();
+                            showNotification('背景添加成功', 'success');
+                        }).catch(() => showNotification('图片处理失败', 'error'));
+                    }
+                    ev.target.value = '';
+                };
+                setTimeout(() => { cbgInput.click(); }, 50);
+                return;
             }
+
             // 表情库走文件上传
             if (currentSubTab === 'stickers') {
                 document.getElementById('sticker-file-input')?.click();
@@ -2701,186 +2635,161 @@ function applyAllAvatarFrames() {
     }
 }
 
-
-// ========== 通话背景渲染 (强制诊断版) ==========
-async function _renderCallBgTab(grid) {
+/*function _renderCallBgTab(grid, itemsToRender) { 
+    if (!itemsToRender) itemsToRender = window.callBgLibrary || []; 
     grid.className = ''; 
     grid.style.cssText = ''; 
     grid.innerHTML = ''; 
-    
-    if (!callBgLibrary || callBgLibrary.length === 0) return;
 
-    const scrollBox = document.createElement('div');
-    scrollBox.style.cssText = `
-        display: flex; flex-wrap: wrap; gap: 10px;
-        overflow-y: auto; max-height: 60vh; padding: 4px; align-content: start;
-    `;
+    const scrollBox = document.createElement('div'); 
+    scrollBox.style.cssText = `display: flex; flex-wrap: wrap; gap: 10px; overflow-y: auto; max-height: 60vh; padding: 4px; align-content: start;`; 
 
-    for (let index = 0; index < callBgLibrary.length; index++) {
-        const item = callBgLibrary[index];
-        const div = document.createElement('div');
+    itemsToRender.forEach((url, index) => { 
+        const div = document.createElement('div'); 
+        const tempId = 'callbg_' + index;
         
-        div.style.cssText = `
-            width: calc(25% - 8px); aspect-ratio: 3/4; position: relative;
-            border-radius: 8px; overflow: hidden;
-            border: 2px solid ${activeCallBg === item.id ? 'var(--accent-color)' : 'var(--border-color)'};
-            cursor: pointer; transition: all 0.2s; background: var(--secondary-bg);
-        `;
+        div.style.cssText = `width: calc(25% - 8px); aspect-ratio: 3/4; position: relative; border-radius: 8px; overflow: hidden; border: 2px solid ${activeCallBg === tempId ? 'var(--accent-color)' : 'var(--border-color)'}; cursor: pointer; transition: all 0.2s; background: var(--secondary-bg);`; 
 
-        const mediaEl = document.createElement(item.type === 'video' ? 'video' : 'img');
-        mediaEl.style.cssText = 'width:100%;height:100%;object-fit:cover;display:block;';
-
-        // 🔥 1. 强行去数据库拿文件
-        console.log(`[诊断] 准备读取ID: ${item.id}, 类型: ${item.type}`);
-        const file = await new Promise((resolve, reject) => {
-            const tx = CallBgDB.db.transaction(CallBgDB.storeName, 'readonly');
-            const request = tx.objectStore(CallBgDB.storeName).get(item.id);
-            request.onsuccess = () => resolve(request.result ? request.result.file : null);
-            request.onerror = (e) => reject(e.target.error);
-        });
-
-        // 🔥 2. 严苛检查拿到的到底是个啥
-        console.log(`[诊断] 拿到的数据是:`, file);
-        if (!file) {
-            console.error(`[报错] 数据库里 ${item.id} 是个空壳！`);
-            div.innerHTML = '<div style="color:red;padding:5px;font-size:10px;text-align:center;">文件丢失</div>';
-        } else if (!(file instanceof File) && !(file instanceof Blob)) {
-            console.error(`[报错] 拿到的根本不是文件！而是:`, typeof file);
-            div.innerHTML = '<div style="color:red;padding:5px;font-size:10px;text-align:center;">数据类型错误</div>';
+        if (!url || typeof url !== 'string') { 
+            div.innerHTML = '<div style="color:red;padding:5px;font-size:10px;text-align:center;">文件丢失</div>'; 
         } else {
-            // 🔥 3. 强行生成预览地址
-            const blobUrl = URL.createObjectURL(file);
-            mediaEl.src = blobUrl;
-            console.log(`[成功] 图片地址生成成功: ${blobUrl.substring(0, 50)}...`);
+            const img = document.createElement('img'); 
+            img.style.cssText = 'width:100%;height:100%;object-fit:cover;display:block;'; 
+            img.src = url; 
+            div.appendChild(img); 
         }
 
-        // 视频悬浮播放逻辑
-        if (item.type === 'video' && mediaEl.src) {
-            mediaEl.muted = true; mediaEl.playsInline = true; mediaEl.loop = true;
-            div.onmouseover = () => mediaEl.play().catch(()=>{});
-            div.onmouseout = () => { mediaEl.pause(); mediaEl.currentTime = 0; };
+        // 选中打勾 
+        const checkSpan = document.createElement('span'); 
+        checkSpan.style.cssText = `position:absolute;top:5px;right:5px;width:20px;height:20px;border-radius:50%;background:var(--accent-color);color:#fff;display:${activeCallBg === tempId ? 'flex' : 'none'};align-items:center;justify-content:center;font-size:11px;pointer-events:none;`; 
+        checkSpan.textContent = '✓'; 
+
+        // 删除按钮 
+        const delBtn = document.createElement('button'); 
+        delBtn.className = 'callbg-del-btn'; 
+        delBtn.style.cssText = 'position:absolute;bottom:5px;right:5px;width:18px;height:18px;border-radius:5px;background:rgba(0,0,0,0.4);color:#fff;border:none;cursor:pointer;display:none;align-items:center;justify-content:center;font-size:13px;font-weight:bold;z-index:2;backdrop-filter:blur(4px);transition: all 0.2s;'; 
+        delBtn.textContent = 'x'; 
+        div.appendChild(checkSpan); 
+        div.appendChild(delBtn); 
+        div.addEventListener('mouseover', () => delBtn.style.display = 'flex'); 
+        div.addEventListener('mouseout', () => delBtn.style.display = 'none'); 
+
+        // 点击切换背景 
+        div.addEventListener('click', (e) => { 
+            if (e.target === delBtn) return; 
+            activeCallBg = (activeCallBg === tempId) ? null : tempId; 
+            localStorage.setItem('activeCallBg', activeCallBg || ''); 
+            if (typeof callFeature !== 'undefined' && typeof callFeature.applyBg === 'function') callFeature.applyBg(); 
+            _renderCallBgTab(grid, callBgLibrary); 
+        }); 
+
+        // 点击删除
+        delBtn.addEventListener('click', (e) => { 
+            e.stopPropagation(); 
+            if (!confirm('确定删除这个通话背景吗？')) return; 
+            callBgLibrary.splice(index, 1); 
+            if (activeCallBg === tempId) { 
+                activeCallBg = null; 
+                localStorage.removeItem('activeCallBg'); 
+                if (typeof callFeature !== 'undefined' && typeof callFeature.applyBg === 'function') callFeature.applyBg(); 
+            } 
+            if (typeof DB_GATEWAY !== 'undefined') { 
+                DB_GATEWAY.setMedia('callBgLibrary', callBgLibrary); 
+            } else if (typeof throttledSaveData === 'function') { 
+                throttledSaveData(); 
+            } 
+            _renderCallBgTab(grid, callBgLibrary); 
+        }); 
+
+        scrollBox.appendChild(div); 
+    }); 
+
+    grid.appendChild(scrollBox); 
+}*/
+function _renderCallBgTab(grid, itemsToRender) {
+    if (!itemsToRender) itemsToRender = window.callBgLibrary || [];
+    grid.className = '';
+    grid.style.cssText = '';
+    grid.innerHTML = '';
+
+    const scrollBox = document.createElement('div');
+    scrollBox.style.cssText = `display: flex; flex-wrap: wrap; gap: 10px; overflow-y: auto; max-height: 60vh; padding: 4px; align-content: start;`;
+
+    itemsToRender.forEach((url, index) => {
+        const div = document.createElement('div');
+        
+        // 🌟 核心修复：不再使用 'callbg_' + index，直接用 url(即Base64字符串) 作为比对标识
+        const isCurrentlyActive = (activeCallBg === url);
+        
+        div.style.cssText = `width: calc(25% - 8px); aspect-ratio: 3/4; position: relative; border-radius: 8px; overflow: hidden; border: 2px solid ${isCurrentlyActive ? 'var(--accent-color)' : 'var(--border-color)'}; cursor: pointer; transition: all 0.2s; background: var(--secondary-bg);`;
+
+        // 🌟 防御性判断：只有是有效字符串才渲染图片
+        if (!url || typeof url !== 'string' || url.length < 100) {
+            div.innerHTML = '<div style="color:red;padding:5px;font-size:10px;text-align:center;">文件丢失或损坏</div>';
+        } else {
+            // 如果未来要支持视频，可以在这里判断 url 是否包含 video 的 mime 类型
+            const img = document.createElement('img');
+            img.style.cssText = 'width:100%;height:100%;object-fit:cover;display:block;';
+            img.src = url;
+            img.loading = 'lazy';
+            div.appendChild(img);
         }
 
         // 选中打勾
         const checkSpan = document.createElement('span');
-        checkSpan.style.cssText = `position:absolute;top:5px;right:5px;width:20px;height:20px;border-radius:50%;background:var(--accent-color);color:#fff;display:${activeCallBg === item.id ? 'flex' : 'none'};align-items:center;justify-content:center;font-size:11px;pointer-events:none;`;
+        checkSpan.style.cssText = `position:absolute;top:5px;right:5px;width:20px;height:20px;border-radius:50%;background:var(--accent-color);color:#fff;display:${isCurrentlyActive ? 'flex' : 'none'};align-items:center;justify-content:center;font-size:11px;pointer-events:none;`;
         checkSpan.textContent = '✓';
 
         // 删除按钮
-        // 删除按钮 (安全防误触版)
         const delBtn = document.createElement('button');
         delBtn.className = 'callbg-del-btn';
-        delBtn.style.cssText = 'position:absolute;bottom:5px;right:5px;width:18px;height:18px;border-radius:5px;background:rgba(0,0,0,0.4);color:#fff;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:bold;z-index:2;backdrop-filter:blur(4px);transition: all 0.2s;';
-        delBtn.textContent = 'x'; 
-        let isConfirming = false; // 记录是否处于“确认删除”状态
-
-
-        div.appendChild(mediaEl);
+        delBtn.style.cssText = 'position:absolute;bottom:5px;right:5px;width:18px;height:18px;border-radius:5px;background:rgba(0,0,0,0.4);color:#fff;border:none;cursor:pointer;display:none;align-items:center;justify-content:center;font-size:13px;font-weight:bold;z-index:2;backdrop-filter:blur(4px);transition: all 0.2s;';
+        delBtn.textContent = 'x';
+        
         div.appendChild(checkSpan);
         div.appendChild(delBtn);
 
         div.addEventListener('mouseover', () => delBtn.style.display = 'flex');
         div.addEventListener('mouseout', () => delBtn.style.display = 'none');
 
+        // 点击切换背景
         div.addEventListener('click', (e) => {
             if (e.target === delBtn) return;
-            activeCallBg = (activeCallBg === item.id) ? null : item.id;
+            
+            // 🌟 核心修复：如果点击的已经是当前激活的背景，就取消选中；否则存入 Base64 字符串
+            activeCallBg = (activeCallBg === url) ? null : url; 
             localStorage.setItem('activeCallBg', activeCallBg || '');
+            
             if (typeof callFeature !== 'undefined' && typeof callFeature.applyBg === 'function') callFeature.applyBg();
-            _renderCallBgTab(grid);
+            _renderCallBgTab(grid, callBgLibrary); // 刷新选中状态的UI
         });
 
+        // 点击删除
         delBtn.addEventListener('click', (e) => {
             e.stopPropagation();
             if (!confirm('确定删除这个通话背景吗？')) return;
-            const tx = CallBgDB.db.transaction(CallBgDB.storeName, 'readwrite');
-            tx.objectStore(CallBgDB.storeName).delete(item.id);
-            tx.oncomplete = () => {
-                callBgLibrary.splice(index, 1);
-                if (activeCallBg === item.id) {
-                    activeCallBg = null; localStorage.removeItem('activeCallBg');
-                    if (typeof callFeature !== 'undefined' && typeof callFeature.applyBg === 'function') callFeature.applyBg();
-                }
-                if (typeof throttledSaveData === 'function') throttledSaveData(); 
-                _renderCallBgTab(grid);
-            };
+            
+            callBgLibrary.splice(index, 1);
+            
+            // 🌟 核心修复：如果删除的正好是当前选中的背景，清空激活状态
+            if (activeCallBg === url) {
+                activeCallBg = null;
+                localStorage.removeItem('activeCallBg');
+                if (typeof callFeature !== 'undefined' && typeof callFeature.applyBg === 'function') callFeature.applyBg();
+            }
+            
+            if (typeof DB_GATEWAY !== 'undefined') {
+                DB_GATEWAY.setMedia('callBgLibrary', callBgLibrary);
+            } else if (typeof throttledSaveData === 'function') {
+                throttledSaveData();
+            }
+            _renderCallBgTab(grid, callBgLibrary);
         });
 
-        scrollBox.appendChild(div); 
-    }
+        scrollBox.appendChild(div);
+    });
+    
     grid.appendChild(scrollBox);
 }
 
 
-async function _handleCallBgUpload(file) {
-    const isImage = file.type.startsWith('image/');
-    const isVideo = file.type.startsWith('video/');
-
-    if (!isImage && !isVideo) {
-        if (typeof showNotification === 'function') showNotification('仅支持图片或视频格式', 'error');
-        return;
-    }
-
-    // 限制 50MB
-    if (file.size > 50 * 1024 * 1024) {
-        if (typeof showNotification === 'function') showNotification('文件过大，建议 50MB 以下', 'error');
-        return;
-    }
-
-    if (typeof showNotification === 'function') showNotification('正在保存...', 'info');
-
-    const id = 'cbg_' + Date.now() + Math.random().toString(36).substr(2, 4);
-    const type = isImage ? 'image' : 'video';
-
-    if (isVideo) {
-        // 视频需要先检查时长
-        const tempVideo = document.createElement('video');
-        tempVideo.preload = 'metadata';
-        tempVideo.onloadedmetadata = () => {
-            if (tempVideo.duration > 120) {
-                if (typeof showNotification === 'function') showNotification('视频时长不能超过 120 秒', 'error');
-                URL.revokeObjectURL(tempVideo.src);
-                return;
-            }
-            URL.revokeObjectURL(tempVideo.src);
-            doSave(id, file, type);
-        };
-        tempVideo.onerror = () => {
-            if (typeof showNotification === 'function') showNotification('视频编码不兼容', 'error');
-            URL.revokeObjectURL(tempVideo.src);
-        };
-        tempVideo.src = URL.createObjectURL(file);
-    } else {
-        doSave(id, file, type);
-    }
-
-    // 🔥 核心：直接存原始的 file 对象，绝不转 Base64！
-    function doSave(id, file, type) {
-        try {
-            const tx = CallBgDB.db.transaction(CallBgDB.storeName, 'readwrite');
-            tx.objectStore(CallBgDB.storeName).put({ id, file });
-            
-            tx.oncomplete = () => {
-                if (!callBgLibrary) callBgLibrary = [];
-                callBgLibrary.push({ id, type }); 
-                
-                activeCallBg = id;
-                localStorage.setItem('activeCallBg', activeCallBg);
-                if (typeof throttledSaveData === 'function') throttledSaveData(); 
-                
-                // 刷新列表
-                const listContainer = document.getElementById('custom-replies-list');
-                if (listContainer) _renderCallBgTab(listContainer);
-                
-                if (typeof showNotification === 'function') showNotification('背景添加成功', 'success');
-                if (typeof callFeature !== 'undefined' && typeof callFeature.applyBg === 'function') callFeature.applyBg();
-            };
-            
-            tx.onerror = () => {
-                if (typeof showNotification === 'function') showNotification('数据库写入失败', 'error');
-            };
-        } catch (err) {
-            console.error('保存失败:', err);
-        }
-    }
-}

@@ -1,4 +1,4 @@
-/**
+/*
  * splash.js - 入场引导 Splash Screen
  * 打字状态指示器与入场承诺页
  */

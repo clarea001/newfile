@@ -1,4 +1,4 @@
-/**
+/*
  * app.js - Application Entry Point
  * 应用初始化与主入口
  */
@@ -96,15 +96,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         updateLoader('正在建立安全连接...', '10%');
 
         // 👇 先初始化 SESSION_ID，再执行其他模块
-        await safeAwait(initializeSession());
+        //await safeAwait(initializeSession());
 
         await safeAwait(Promise.all([
         setupEventListeners?.(),
         initThemeEditor?.(),
-        // initAnniversaryModule?.(),  ← 删掉这行，setupEventListeners 里面已经调过了
         initMoodListeners?.(),
         initDecisionModule?.(),
-       // initComboMenu?.()
         ]));
 
 
@@ -118,15 +116,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         window._keepKeyboardAlive = !!settings.keepKeyboardAlive;
 
         // ====== 页面加载时，恢复用户自定义的字体设置 ======
-       /* if (settings.customFontUrl && settings.customFontUrl.trim()) {
-        applyCustomFont(settings.customFontUrl.trim()).catch(err => {
-            console.warn('初始化加载自定义字体失败，已回退默认字体:', err);
-        });
-        } else if (settings.messageFontFamily) {
-        // 如果之前存过字体栈（比如跟随系统），也直接应用
-        document.documentElement.style.setProperty('--font-family', settings.messageFontFamily);
-        document.documentElement.style.setProperty('--message-font-family', settings.messageFontFamily);
-        }*/
          // 初始化字体（支持本地文件和外部链接）
         if (settings.useLocalFont || (settings.customFontUrl && settings.customFontUrl.trim())) {
             applyCurrentFont().catch(err => {
@@ -141,7 +130,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         
         await Promise.allSettled([
             safeAwait(initializeRandomUI?.()),
-           // safeAwait(initMusicPlayer?.())
         ]);
 
         setInterval(checkStatusChange, 60000);
@@ -185,14 +173,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         });
 
-        window.addEventListener('pagehide', () => {
-            _backupCriticalData(); 
-        });
-
-        window.addEventListener('beforeunload', () => {
-            _backupCriticalData();
-        });
-
         setInterval(() => {
             saveData().catch(e => console.warn('[autoBackup] 定时保存失败:', e));
         }, 30 * 1000);// 每30秒保存一次
@@ -215,47 +195,47 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 });
 const stickerInput = document.getElementById('sticker-file-input');
-            if (stickerInput) {
-                stickerInput.addEventListener('change', async (e) => {
-                    const files = Array.from(e.target.files);
-                    if (!files.length) return;
+if (stickerInput) {
+    stickerInput.addEventListener('change', async (e) => {
+        const files = Array.from(e.target.files);
+        if (!files.length) return;
 
-                    const oversized = files.filter(f => f.size > 2 * 1024 * 1024);
-                    if (oversized.length > 0) {
-                        showNotification(oversized.length + ' 张图片超过 2MB 限制，已跳过', 'warning');
-                    }
+        const oversized = files.filter(f => f.size > 2 * 1024 * 1024);
+        if (oversized.length > 0) {
+            showNotification(oversized.length + ' 张图片超过 2MB 限制，已跳过', 'warning');
+        }
 
-                    const validFiles = files.filter(f => f.size <= 2 * 1024 * 1024);
-                    if (!validFiles.length) return;
+        const validFiles = files.filter(f => f.size <= 2 * 1024 * 1024);
+        if (!validFiles.length) return;
 
-                    showNotification('正在批量处理 ' + validFiles.length + ' 张图片...', 'info');
+        showNotification('正在批量处理 ' + validFiles.length + ' 张图片...', 'info');
 
-                    let successCount = 0;
-                    let failCount = 0;
+        let successCount = 0;
+        let failCount = 0;
 
-                    for (const file of validFiles) {
-                        try {
-                            const base64 = await optimizeImage(file, 300, 0.8);
-                            stickerLibrary.push(base64);
-                            successCount++;
-                        } catch (err) {
-                            console.error(err);
-                            failCount++;
-                        }
-                    }
-
-                    throttledSaveData();
-                    renderReplyLibrary();
-
-                    if (failCount > 0) {
-                        showNotification('上传完成：' + successCount + ' 张成功，' + failCount + ' 张失败', 'warning');
-                    } else {
-                        showNotification('上传成功，共 ' + successCount + ' 张', 'success');
-                    }
-
-                    e.target.value = '';
-                });
+        for (const file of validFiles) {
+            try {
+                const base64 = await optimizeImage(file, 300, 0.8);
+                stickerLibrary.push(base64);
+                successCount++;
+            } catch (err) {
+                console.error(err);
+                failCount++;
             }
+        }
+
+        throttledSaveData();
+        renderReplyLibrary();
+
+        if (failCount > 0) {
+            showNotification('上传完成：' + successCount + ' 张成功，' + failCount + ' 张失败', 'warning');
+        } else {
+            showNotification('上传成功，共 ' + successCount + ' 张', 'success');
+        }
+
+        e.target.value = '';
+    });
+}
 
 window.addEventListener('load', function() {
     setTimeout(function() {

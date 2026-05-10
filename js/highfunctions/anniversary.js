@@ -1,4 +1,4 @@
-/**
+/*
  * features/anniversary.js - 重要日与提醒系统
  */
 
@@ -109,8 +109,10 @@ async function fillAnnHeaderCard(ann) {
 
     const bgEl = document.getElementById('ann-header-card-bg');
     if (bgEl) {
-        const savedBg = await localforage.getItem(getStorageKey(`annHeaderBg_${ann.id}`));
-        bgEl.style.backgroundImage = savedBg ? `url(${savedBg})` : '';
+        // 🌟 改动：不再用 get() 去文字柜找，而是去图片柜把整包拿回来匹配
+        const allBgs = DB_GATEWAY.getMedia('annHeaderBgs') || [];
+        const myBgObj = allBgs.find(b => b.id === ann.id);
+        bgEl.style.backgroundImage = myBgObj && myBgObj.src ? `url(${myBgObj.src})` : '';
     }
 
     document.querySelectorAll('.ann-item-card').forEach(el => el.classList.remove('ann-item-active'));
@@ -179,31 +181,6 @@ function addAnniversary() {
     // 4. 文案（直接保存多行文本即可）
     const customMsgEl = document.getElementById('ann-custom-message');
     const customMessage = customMsgEl ? customMsgEl.value.trim() : '';
-
-    // 编辑或新增逻辑
-   /* if (currentEditAnnId) {
-        const index = anniversaries.findIndex(a => a.id === currentEditAnnId);
-        if (index > -1) {
-            anniversaries[index].name = name;
-            anniversaries[index].date = date;
-            anniversaries[index].type = type;
-            anniversaries[index].remindRules = remindRules;
-            anniversaries[index].customMessage = customMessage;
-            currentEditAnnId = null;
-        }
-    } else {
-        anniversaries.push({
-            id: Date.now(),
-            name: name,
-            date: date,
-            type: type,
-            remindRules: remindRules,
-            customMessage: customMessage
-        });
-    }
-
-    throttledSaveData();
-    renderAnniversariesList();*/
     let justSavedAnn = null;
 
     if (currentEditAnnId) {
@@ -327,7 +304,7 @@ function renderAnniversariesList() {
     });
 }
 
-/**
+/*
  * 编辑模式：点击卡片时填充数据
  */
 
@@ -399,13 +376,17 @@ window.selectAnnCard = function(id) {
 
 window.clearAnnCardBg = async function() {
     if (!activeAnnId) return;
-    await localforage.removeItem(getStorageKey(`annHeaderBg_${activeAnnId}`));
+    // 🌟 改动：从整包里剔除这一项
+    let allBgs = DB_GATEWAY.getMedia('annHeaderBgs') || [];
+    allBgs = allBgs.filter(b => b.id !== activeAnnId);
+    DB_GATEWAY.setMedia('annHeaderBgs', allBgs);
+    
     const bgEl = document.getElementById('ann-header-card-bg');
     if (bgEl) bgEl.style.backgroundImage = '';
     showNotification('封面图已清除', 'success');
 };
 
-/**
+/*
  * 核心功能：检测系统，每日运行
  */
 
@@ -617,13 +598,23 @@ function initAnniversaryModule() {
                 const dataUrl = ev.target.result;
                 const bgEl = document.getElementById('ann-header-card-bg');
                 if (bgEl) bgEl.style.backgroundImage = `url(${dataUrl})`;
-                await localforage.setItem(getStorageKey(`annHeaderBg_${activeAnnId}`), dataUrl);
+                
+                // 🌟 改动：把散装写入改成“取出整包 -> 修改对应项 -> 存回整包”
+                let allBgs = DB_GATEWAY.getMedia('annHeaderBgs') || [];
+                const existIdx = allBgs.findIndex(b => b.id === activeAnnId);
+                const bgItem = { id: activeAnnId, src: dataUrl };
+                if (existIdx > -1) {
+                    allBgs[existIdx] = bgItem; // 更新已有的
+                } else {
+                    allBgs.push(bgItem);        // 追加新的
+                }
+                DB_GATEWAY.setMedia('annHeaderBgs', allBgs);
                 showNotification('封面图已更新', 'success');
             };
             reader.readAsDataURL(file);
             e.target.value = '';
         });
-        }
+    }
     window.startInlineEdit = function(id, event) {
         if (event) event.stopPropagation();
         const ann = anniversaries.find(a => a.id === id);
