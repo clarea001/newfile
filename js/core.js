@@ -537,7 +537,10 @@ async function loadData() {
         const savedThemeSchemes = DB_GATEWAY.get('themeSchemes');
         const savedMyStickers = DB_GATEWAY.getMedia('myStickerLibrary');
         const savedReplyGroups = DB_GATEWAY.get('customReplyGroups');
-        const savedCalendarEvents = DB_GATEWAY.get('calendarEvents');
+        //const savedCalendarEvents = DB_GATEWAY.get('calendarEvents');
+        // 🌟 核心修复：从正确的 moodAndCalendar 房间里读取日程！
+        const savedMoodAndCalendar = DB_GATEWAY.get('moodAndCalendar') || {};
+        const savedCalendarEvents = savedMoodAndCalendar.events;
         const savedWishingPool = DB_GATEWAY.get('wishingPoolData');
         const savedCallBgLibrary = DB_GATEWAY.getMedia('callBgLibrary');
 
@@ -558,7 +561,8 @@ async function loadData() {
         callBgLibrary = savedCallBgLibrary || [];
         activeCallBg = localStorage.getItem('activeCallBg') || null;
         wishingPoolData = savedWishingPool || [];
-        calendarEvents = savedCalendarEvents || [];
+        //calendarEvents = savedCalendarEvents || [];
+        calendarEvents = Array.isArray(savedCalendarEvents) ? savedCalendarEvents : [];
         
         if (savedCustomReplies && Array.isArray(savedCustomReplies)) {
             customReplies = savedCustomReplies;
@@ -785,7 +789,11 @@ window.deleteAnniversaryItem = function(id) {
             DB_GATEWAY.setMedia('myStickerLibrary', myStickerLibrary);
             DB_GATEWAY.set('customThemes', customThemes);
             DB_GATEWAY.set('themeSchemes', themeSchemes);
-            DB_GATEWAY.set('calendarEvents', calendarEvents);
+           // DB_GATEWAY.set('calendarEvents', calendarEvents);
+           // 🌟 核心修复：保存时也要存回 moodAndCalendar 房间，保持数据源头统一！
+            let currentMoodAndCalendar = DB_GATEWAY.get('moodAndCalendar') || {};
+            currentMoodAndCalendar.events = calendarEvents;
+            DB_GATEWAY.set('moodAndCalendar', currentMoodAndCalendar);
             DB_GATEWAY.set('wishingPoolData', wishingPoolData);
             DB_GATEWAY.setMedia('callBgLibrary', callBgLibrary);
             if (window.moodData) DB_GATEWAY.set('moodData', window.moodData);
