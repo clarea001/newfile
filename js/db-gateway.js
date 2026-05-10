@@ -153,7 +153,7 @@ const DB_GATEWAY = {
     // 2. 管家打包逻辑 (只执行一次) - 里面的逻辑不用动
     // ==========================================
     async _migrateOldData() {
-        const PREFIX = 'CHAT_APP_V3_';
+       /* const PREFIX = 'CHAT_APP_V3_';
         const keys = await localforage.keys();
         
                 // 1. 找出数据最多的主力会话前缀
@@ -187,6 +187,51 @@ const DB_GATEWAY = {
                 maxCount = count;
                 mainSessionPrefix = PREFIX + prefix + '_';
             }
+        }
+*/
+        const PREFIX = 'CHAT_APP_V3_';
+        const keys = await localforage.keys();
+        
+        // 1. 找出数据最多的主力会话前缀
+        let mainSessionPrefix = '';
+        const candidates = {};
+        
+        for (const key of keys) {
+        if (!key.startsWith(PREFIX)) continue;
+        
+        const afterPrefix = key.slice(PREFIX.length);
+        
+        // 🌟 修复：兼容各种格式的旧键名
+        // 情况1: CHAT_APP_V3_chatMessages (没带session前缀的裸键)
+        if (afterPrefix === 'chatMessages') {
+            if (!candidates['']) {
+            try { const data = await localforage.getItem(key); candidates[''] = (Array.isArray(data) ? data.length : 0); } catch(e) { candidates[''] = 0; }
+            }
+        } 
+        // 情况2: CHAT_APP_V3_xxx_chatMessages (你目前这种带session前缀的)
+        else if (afterPrefix.endsWith('_chatMessages')) {
+            const prefix = afterPrefix.slice(0, afterPrefix.length - '_chatMessages'.length);
+            if (['sessionList', 'MIGRATION', 'lastSessionId', 'callBgLibrary', 'customThemes', 'themeSchemes'].some(skip => prefix.startsWith(skip))) continue;
+            if (!candidates[prefix]) {
+            try { const data = await localforage.getItem(key); candidates[prefix] = (Array.isArray(data) ? data.length : 0); } catch(e) { candidates[prefix] = 0; }
+            }
+        }
+        // 🌟 终极兜底：万一连 chatMessages 都没有，只要有 _chatSettings 也算找到旧数据了
+        else if (afterPrefix.endsWith('_chatSettings') && Object.keys(candidates).length === 0) {
+            const prefix = afterPrefix.slice(0, afterPrefix.length - '_chatSettings'.length);
+            if (prefix && !['sessionList', 'MIGRATION', 'lastSessionId', 'callBgLibrary', 'customThemes', 'themeSchemes'].some(skip => prefix.startsWith(skip))) {
+            candidates[prefix] = 1; // 给个默认值，确保能被选中
+            }
+        }
+        }
+
+        // 选出消息最多的那个前缀
+        let maxCount = 0;
+        for (const [prefix, count] of Object.entries(candidates)) {
+        if (count > maxCount) {
+            maxCount = count;
+            mainSessionPrefix = PREFIX + (prefix ? prefix + '_' : ''); 
+        }
         }
 
         if (!mainSessionPrefix) {
