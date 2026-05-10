@@ -1,4 +1,4 @@
-/** * board-v2.js - 双向线程留言板 (绝对隔离引擎版) */
+/* * board-v2.js - 双向线程留言板 (绝对隔离引擎版) */
 (function() {
 'use strict';
 
@@ -7,6 +7,36 @@ let currentView = 'me';
 let currentThreadId = null;
 let currentComposeMode = null;
 let currentComposeType = null;
+
+// --- 留言板专属图片解码器（架构闭环组件） ---
+function resolveBoardImage(src) {
+    if (!src) return null;
+    // 1. 如果是当初存的“取件码”，去 DB_GATEWAY 柜子里换回真图
+    if (typeof src === 'string' && src.startsWith('board_img_')) {
+        return (typeof DB_GATEWAY !== 'undefined') ? DB_GATEWAY.getMedia(src) : src;
+    }
+    // 2. 如果已经是真图，或者老数据，原样返回
+    return src;
+}
+
+// --- 温和的图片寄存工具（把大图挪到 MEDIA 柜子，防止撑爆主柜子） ---
+function storeBoardImage(base64Data) {
+  if (!base64Data || typeof base64Data !== 'string' || !base64Data.startsWith('data:image')) return base64Data;
+  try {
+      const imgId = 'board_img_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4);
+      // 把真图塞进 APP_MEDIA 柜子
+      if (typeof DB_GATEWAY !== 'undefined') {
+          DB_GATEWAY.setMedia(imgId, base64Data);
+      } else {
+          localforage.setItem(imgId, base64Data); // 降级保底
+      }
+      return imgId; // 返回一张小纸条
+  } catch(e) {
+      console.warn('[Board] 图片寄存失败，保留原格式', e);
+      return base64Data;
+  }
+}
+
 let selectedImage = null;
 let isMultiSelectMode = false;
 let selectedThreadIds = new Set();
@@ -41,7 +71,7 @@ function syncReplyPool() {
 }
 
 
-async function loadData() {
+/*async function loadData() {
     try {
         const saved = await localforage.getItem(STORAGE_KEY);
         if (saved) boardData = { ...boardData, ...saved };
@@ -62,10 +92,81 @@ async function loadData() {
     } catch(e) {
         console.warn('BoardV2 load error', e);
     }
+}*/
+
+async function loadData() {
+    try {
+        // 1. 优先从大管家（新架构）家里拿最新数据
+        const latestData = (typeof DB_GATEWAY !== 'undefined') ? DB_GATEWAY.get('boardData') : null;
+        if (latestData) {
+            boardData = { ...boardData, ...latestData };
+        } else {
+            // 2. 如果新家里没有，看看是不是还在老房子（散装键）里住着
+            const saved = await localforage.getItem(STORAGE_KEY);
+            if (saved) boardData = { ...boardData, ...saved };
+        }
+
+        // 3. 🌟 核心缝合：如果还是空的，去大管家的迁移包裹里找老版本的 envelopeData
+        if (boardData.myThreads.length === 0 && boardData.partnerThreads.length === 0) {
+            const oldEnvelope = (typeof DB_GATEWAY !== 'undefined') ? DB_GATEWAY.get('envelopeData') : null;
+            
+            if (oldEnvelope && oldEnvelope.outbox && oldEnvelope.outbox.length > 0) {
+                console.log(`[BoardV2] 从新架构包裹中精准找回 ${oldEnvelope.outbox.length} 条老留言，开始重组...`);
+                const inbox = oldEnvelope.inbox || [];
+                
+                oldEnvelope.outbox.forEach(letter => {
+                    const newThread = {
+                        id: letter.id || genId(),
+                        starter: 'me',
+                        createdAt: letter.sentTime || Date.now(),
+                        replies: [{
+                            id: 'old_m_' + (letter.id || genId()),
+                            sender: 'me',
+                            text: letter.content,
+                            image: null,
+                            sticker: null,
+                            timestamp: letter.sentTime || Date.now()
+                        }]
+                    };
+                    
+                    // 匹配老版本的回复
+                    const matchedReply = inbox.find(r => r.refId === letter.id);
+                    if (matchedReply) {
+                        newThread.replies.push({
+                            id: 'old_p_' + (matchedReply.id || genId()),
+                            sender: 'partner',
+                            text: matchedReply.content,
+                            image: null,
+                            sticker: null,
+                            timestamp: matchedReply.receivedTime || Date.now()
+                        });
+                        if (matchedReply.isNew) newThread.unread = true;
+                    } else if (letter.status === 'pending' && letter.replyTime) {
+                        newThread.expectedReplyTime = letter.replyTime;
+                    }
+                    
+                    boardData.myThreads.push(newThread);
+                });
+                
+                // 找回后，立刻把违建房拆了，正式搬进别墅
+                await saveData(); 
+            }
+        }
+
+        // 4. 同步回复库
+        if (boardData.boardReplyPool.length === 0 && typeof customReplies !== 'undefined' && customReplies.length > 0) {
+            boardData.boardReplyPool = JSON.parse(JSON.stringify(customReplies));
+            await saveData();
+        }
+        
+        window.boardDataV2 = boardData;
+    } catch(e) {
+        console.warn('BoardV2 load error', e);
+    }
 }
 
 // === 专门针对老版 board.js 的无损迁移函数 ===
-async function migrateOldBoardData() {
+/*async function migrateOldBoardData() {
     try {
         // 1. 在 localforage 里捞出带有 envelopeData 的老键
         const keys = await localforage.keys();
@@ -127,9 +228,24 @@ async function migrateOldBoardData() {
         console.error('[BoardV2] 老版数据迁移出错:', e);
         return 0;
     }
-}
+}*/
 
-async function saveData() { try { await localforage.setItem(STORAGE_KEY, boardData);window.boardDataV2 = boardData; } catch(e) { console.warn('BoardV2 save error', e); } }
+//async function saveData() { try { await localforage.setItem(STORAGE_KEY, boardData);window.boardDataV2 = boardData; } catch(e) { console.warn('BoardV2 save error', e); } }
+
+async function saveData() {
+    try {
+        // 🌟 彻底切断散装存储，统一走大管家入库
+        if (typeof DB_GATEWAY !== 'undefined') {
+            DB_GATEWAY.set('boardData', boardData);
+        } else {
+            // 极端降级保底：如果连管家都没加载，才用老办法
+            await localforage.setItem(STORAGE_KEY, boardData);
+        }
+        window.boardDataV2 = boardData;
+    } catch(e) {
+        console.warn('BoardV2 save error', e);
+    }
+}
 
 // --- 核心：绝对时间锚点引擎 ---
 function checkStatus() {
@@ -523,7 +639,13 @@ function openDetail(threadId, type) {
       const isStarter = idx === 0;
       let cHtml = '';
       if (r.text) cHtml += `<div class="${isSenderMe ? 'board-user-text' : 'board-reply-text'}" id="bv2-text-${r.id}">${escapeHtml(r.text)}</div>`;
-      if (r.image) cHtml += `<div id="bv2-img-${r.id}" class="${isSenderMe ? 'board-user-text' : 'board-reply-text'}" style="display:inline-block; position:relative; margin-bottom:8px;"><img src="${r.image}" style="max-width:150px;border-radius:8px;display:block;cursor:pointer;" onclick="viewImage('${r.image}')"></div>`;
+      const realImgSrc = resolveBoardImage(r.image);
+        if (realImgSrc) {
+            cHtml += `<div id="bv2-img-${r.id}" class="${isSenderMe ? 'board-user-text' : 'board-reply-text'}" style="display:inline-block; position:relative; margin-bottom:8px;"><img src="${realImgSrc}" style="max-width:150px;border-radius:8px;display:block;cursor:pointer;" onclick="viewImage('${realImgSrc}')"></div>`;
+        }
+
+         //if (r.image) cHtml += `<div id="bv2-img-${r.id}" class="${isSenderMe ? 'board-user-text' : 'board-reply-text'}" style="display:inline-block; position:relative; margin-bottom:8px;"><img src="${r.image}" style="max-width:150px;border-radius:8px;display:block;cursor:pointer;" onclick="viewImage('${r.image}')"></div>`;
+      
       if (r.stickers && r.stickers.length > 0) {
           // 先用一个 position:relative 的盒子包住（用来给红线定位）
           cHtml += `<div style="position:relative; display:flex; flex-wrap:wrap; gap:8px; margin-top:8px;margin-bottom:8px; padding-left:40px;">`;
@@ -643,7 +765,10 @@ async function submitPost() {
     if(typeof showNotification === 'function') showNotification('内容不能为空', 'warning');
     return;
   }
-  const newReply = { id: genId(), sender: 'me', text, image: selectedImage || null, sticker: null, timestamp: Date.now() };
+  const newReply = { id: genId(), sender: 'me', text, 
+    //image: selectedImage || null, 
+    image: storeBoardImage(selectedImage) || null,
+    sticker: null, timestamp: Date.now() };
   if (currentComposeMode === 'new') {
     boardData.myThreads.push({ id: genId(), starter: 'me', createdAt: Date.now(), replies: [newReply] });
   } else {
@@ -826,7 +951,12 @@ async function exportThreadsToImg(threads) {
             const isSenderMe = r.sender === 'me';
             let cHtml = '';
             if (r.text) cHtml += `<div class="${isSenderMe ? 'board-user-text' : 'board-reply-text'}">${escapeHtml(r.text)}</div>`;
-            if (r.image) cHtml += `<div id="bv2-img-${r.id}" class="${isSenderMe ? 'board-user-text' : 'board-reply-text'}" style="display:inline-block; position:relative; margin-bottom:8px;"><img src="${r.image}" style="max-width:150px;border-radius:8px;display:block;cursor:pointer;" onclick="viewImage('${r.image}')"></div>`;
+            //if (r.image) cHtml += `<div id="bv2-img-${r.id}" class="${isSenderMe ? 'board-user-text' : 'board-reply-text'}" style="display:inline-block; position:relative; margin-bottom:8px;"><img src="${r.image}" style="max-width:150px;border-radius:8px;display:block;cursor:pointer;" onclick="viewImage('${r.image}')"></div>`;
+            if (r.image) {
+                const expImgSrc = resolveBoardImage(r.image);
+                if (expImgSrc) cHtml += `<div id="bv2-img-${r.id}" class="${isSenderMe ? 'board-user-text' : 'board-reply-text'}" style="display:inline-block; position:relative; margin-bottom:8px;"><img src="${expImgSrc}" style="max-width:150px;border-radius:8px;display:block;cursor:pointer;" onclick="viewImage('${expImgSrc}')"></div>`;
+            }
+
             // 大概在 exportThreadsToImg 函数里面，找到这段：
             if (r.stickers && r.stickers.length > 0) {
                 
@@ -966,7 +1096,8 @@ window._bv2_saveGlobalEdit = async function() {
       reply.image = null;
       needSave = true;
     } else if (edits[replyId].action === 'replace' && edits[replyId].data) {
-      reply.image = edits[replyId].data;
+      //reply.image = edits[replyId].data;
+      reply.image = storeBoardImage(edits[replyId].data);
       needSave = true;
     }
   });
@@ -1075,6 +1206,6 @@ window._bv2_doMultiSelect = function(action) {
 
 
 // --- 启动 ---
-loadData().then(() => { setInterval(checkStatus, 60000); checkStatus(); });
+//loadData().then(() => { setInterval(checkStatus, 60000); checkStatus(); });
 
 })();

@@ -1,100 +1,8 @@
-/**
+/*
  * features/mood.js - 心晴手账 Mood Tracker
  * 心情日历与情绪追踪
  */
 
-function toggleBatchFavoriteMode() {
-            isBatchFavoriteMode = !isBatchFavoriteMode;
-            selectedMessages = [];
-
-            if (isBatchFavoriteMode) {
-                document.body.classList.add('batch-favorite-mode');
-                showBatchFavoriteActions();
-                showNotification('批量收藏模式已开启，点击消息进行选择', 'info');
-            } else {
-                document.body.classList.remove('batch-favorite-mode');
-                hideBatchFavoriteActions();
-                showNotification('批量收藏模式已关闭', 'info');
-            }
-
-            renderMessages(true);
-        }
-
-        function hideBatchFavoriteActions() {
-            const actions = document.querySelector('.batch-favorite-actions');
-            if (actions) {
-
-                actions.style.animation = 'floatUpAction 0.3s reverse forwards';
-                setTimeout(() => {
-                    actions.remove();
-                }, 300);
-            }
-        }
-
-
-        function showBatchFavoriteActions() {
-
-            if (document.querySelector('.batch-favorite-actions')) return;
-
-            const actions = document.createElement('div');
-            actions.className = 'batch-favorite-actions';
-
-            actions.innerHTML = `
-        <button class="batch-action-btn-pill batch-btn-cancel" id="cancel-batch-favorite">
-        <i class="fas fa-times"></i> 取消
-        </button>
-        <button class="batch-action-btn-pill batch-btn-confirm" id="confirm-batch-favorite">
-        <i class="fas fa-check"></i> 确认收藏 (0)
-        </button>
-        `;
-            document.body.appendChild(actions);
-
-            document.getElementById('confirm-batch-favorite').addEventListener('click', confirmBatchFavorite);
-            document.getElementById('cancel-batch-favorite').addEventListener('click', toggleBatchFavoriteMode);
-        }
-
-
-        function confirmBatchFavorite() {
-            if (selectedMessages.length === 0) {
-                showNotification('请先选择要收藏的消息', 'warning');
-                return;
-            }
-
-
-            const count = selectedMessages.length;
-
-
-            selectedMessages.forEach(msgId => {
-                const message = messages.find(m => m.id === msgId);
-                if (message) {
-                    message.favorited = true;
-                }
-            });
-
-
-            throttledSaveData();
-
-
-            toggleBatchFavoriteMode();
-
-
-            showNotification(`已成功收藏 ${count} 条消息`, 'success');
-        }
-
-/*const MOOD_OPTIONS = [
-    { key: 'happy', kaomoji: '😆', label: '开心', color: '#FFD93D' },
-    { key: 'excited', kaomoji: '🥰', label: '兴奋', color: '#FF6B6B' },
-    { key: 'peace', kaomoji: '☺️', label: '平淡', color: '#6BCB77' },
-    { key: 'sad', kaomoji: '😕', label: '难过', color: '#4D96FF' },
-    { key: 'tired', kaomoji: '😞', label: '疲惫', color: '#8D9EFF' },
-    { key: 'angry', kaomoji: '😠', label: '生气', color: '#FF4757' },
-    { key: 'love', kaomoji: '🥰', label: '想你', color: '#FF9A8B' },
-    { key: 'busy', kaomoji: '😵‍💫', label: '忙碌', color: '#A8D8EA' },
-    { key: 'sleepy', kaomoji: '😴', label: '困困', color: '#E0C3FC' },
-{ key: 'lonely', kaomoji: '🥹', label: '孤单', color: '#B8A9C9' }, 
-{ key: 'cool', kaomoji: '😎', label: '潇洒', color: '#2C3E50' },
-    { key: 'cute', kaomoji: '🥺', label: '撒娇', color: '#FFB6C1' }
-];*/
 // 统一的心情大池子
 let ALL_MOODS = [];
 let hasInitMoods = false; // 标记是不是第一次初始化
@@ -104,56 +12,20 @@ window.selectedDateStr = null;
 let selectedDateStr = null;
 let currentMoodPage = 1; 
 let currentMoodEditTarget = 'me'; 
-//let customMoodOptions = []; 
 let customMoodSelectedColor = '#FFD93D';
 const CUSTOM_MOOD_COLORS = ['#FFD93D','#FF6B6B','#6BCB77','#4D96FF','#8D9EFF','#FF9A8B','#A8D8EA','#E0C3FC','#B8A9C9','#2C3E50'];
-/*async function initMoodData() {
-  const savedMoods = await localforage.getItem(getStorageKey('moodCalendar'));
-  if (savedMoods) {
-    moodData = savedMoods;
-  }
-  
-  // 核心改变：只读写一个 ALL_MOODS
-  const savedAllMoods = await localforage.getItem('allMoodsPool');
-  if (savedAllMoods && savedAllMoods.length > 0) {
-    await new Promise(r => setTimeout(r, 0));
-    ALL_MOODS = savedAllMoods;
-    hasInitMoods = true;
-  } else {
-    // 如果本地没存过，说明是第一次打开，把自带的放进去（只执行一次）
-    ALL_MOODS = [
-      { key: 'happy', kaomoji: '😆', label: '开心', color: '#FFD93D' },
-      { key: 'excited', kaomoji: '🥰', label: '兴奋', color: '#FF6B6B' },
-      { key: 'peace', kaomoji: '☺️', label: '平淡', color: '#6BCB77' },
-      { key: 'sad', kaomoji: '😕', label: '难过', color: '#4D96FF' },
-      { key: 'tired', kaomoji: '😞', label: '疲惫', color: '#8D9EFF' },
-      { key: 'angry', kaomoji: '😠', label: '生气', color: '#FF4757' },
-      { key: 'love', kaomoji: '🥰', label: '想你', color: '#FF9A8B' },
-      { key: 'busy', kaomoji: '😵‍💫', label: '忙碌', color: '#A8D8EA' },
-      { key: 'sleepy', kaomoji: '😴', label: '困困', color: '#E0C3FC' },
-      { key: 'lonely', kaomoji: '🥹', label: '孤单', color: '#B8A9C9' },
-      { key: 'cool', kaomoji: '😎', label: '潇洒', color: '#2C3E50' },
-      { key: 'cute', kaomoji: '🥺', label: '撒娇', color: '#FFB6C1' }
-    ];
-    // 存进本地，以后再也不走这个 else 了
-    localforage.setItem('allMoodsPool', ALL_MOODS);
-  }
 
-  window.moodData = moodData;
-  checkPartnerDailyMood();
-}*/
 async function initMoodData() {
-    const savedMoods = await localforage.getItem(getStorageKey('moodCalendar'));
+    const savedMoods = await DB_GATEWAY.get('moodCalendar');
     if (savedMoods) {
         moodData = savedMoods;
     }
     
     // ==========================================
-    // 核心迁移逻辑：把旧数据捞出来，塞进新的 ALL_MOODS 里
+    // 核心迁移逻辑：一次性把旧数据搬进新仓库
     // ==========================================
-    const savedAllMoods = await localforage.getItem('allMoodsPool');
     
-    // 先把预设的 12 个放进去
+    // 1. 初始化预设的 12 个基础表情
     ALL_MOODS = [
         { key: 'happy', kaomoji: '😆', label: '开心', color: '#FFD93D' },
         { key: 'excited', kaomoji: '🥰', label: '兴奋', color: '#FF6B6B' },
@@ -169,32 +41,46 @@ async function initMoodData() {
         { key: 'cute', kaomoji: '🥺', label: '撒娇', color: '#FFB6C1' }
     ];
 
-    // 1. 如果新池子里已经有东西了（比如有用户已经用过新版了），先以新池子为准
-    if (savedAllMoods && savedAllMoods.length > 0) {
-        ALL_MOODS = savedAllMoods;
+    // 2. 搬运历史日历数据（只有新仓库是空的时候才搬，防止覆盖新记录）
+    if (!moodData || Object.keys(moodData).length === 0) {
+        const oldKeys = await localforage.keys();
+        // 找出所有旧前缀的日历数据
+        const calendarKeys = oldKeys.filter(k => k.includes('_moodCalendar') && !k.startsWith('DEPRECATED'));
+        for (const k of calendarKeys) {
+            const oldData = await localforage.getItem(k);
+            if (oldData && Object.keys(oldData).length > 1) { // 找到数据最多的那份
+                moodData = oldData;
+                DB_GATEWAY.set('moodCalendar', moodData); // 搬进新家！
+                console.log('[mood] 已自动恢复历史日历数据');
+                break; // 搬完最大的那份就停下
+            }
+        }
     }
 
-    // 2. 去旧的地方（就是旧代码用的那个 key）把自定义表情读出来
-    const oldCustomMoods = await localforage.getItem(getStorageKey('customMoodOptions'));
-    
-    if (oldCustomMoods && Array.isArray(oldCustomMoods) && oldCustomMoods.length > 0) {
-        let addedCount = 0;
-        oldCustomMoods.forEach(oldMood => {
-            // 检查一下新池子里有没有这个表情了，防止重复添加
-            const exists = ALL_MOODS.some(m => m.key === oldMood.key);
-            if (!exists) {
-                ALL_MOODS.push(oldMood);
-                addedCount++;
+    // 3. 搬运自定义表情
+    const oldCustomKeys = (await localforage.keys()).filter(k => k.includes('_customMoodOptions'));
+    if (oldCustomKeys.length > 0) {
+        for (const k of oldCustomKeys) {
+            const oldCustoms = await localforage.getItem(k);
+            if (oldCustoms && Array.isArray(oldCustoms)) {
+                oldCustoms.forEach(oldMood => {
+                    if (!ALL_MOODS.some(m => m.key === oldMood.key)) {
+                        ALL_MOODS.push(oldMood);
+                    }
+                });
+                // 搬进新家！
+                DB_GATEWAY.set('customMoodOptions', ALL_MOODS.filter(m => m.key.startsWith('custom_')));
+                console.log('[mood] 已自动恢复自定义表情');
+                break;
             }
-        });
-
-        // 3. 如果有新增的，就存进新的统一池子 'allMoodsPool' 里
-        if (addedCount > 0) {
-            await localforage.setItem('allMoodsPool', JSON.parse(JSON.stringify(ALL_MOODS)));
-            // 可选：弹个提示告诉用户表情回来了
-            if(typeof showNotification === 'function') {
-                showNotification(`已自动恢复 ${addedCount} 个自定义表情`, 'success');
-            }
+        }
+    } else {
+        // 如果没有旧数据，就从新仓库读
+        const savedCustoms = DB_GATEWAY.get('customMoodOptions');
+        if (savedCustoms && Array.isArray(savedCustoms)) {
+            savedCustoms.forEach(c => {
+                if (!ALL_MOODS.some(m => m.key === c.key)) ALL_MOODS.push(c);
+            });
         }
     }
     // ==========================================
@@ -205,9 +91,16 @@ async function initMoodData() {
     checkPartnerDailyMood();
 }
 
-async function saveAllMoods() {
+/*async function saveAllMoods() {
     await localforage.setItem('allMoodsPool', JSON.parse(JSON.stringify(ALL_MOODS)));
+}*/
+// 把原来的 saveAllMoods 整个替换成这个：
+function saveAllMoods() {
+    // 只把用户自己加的（以 custom_ 或 mood_ 开头的）存进新仓库
+    const customMoods = ALL_MOODS.filter(m => m.key.startsWith('custom_') || m.key.startsWith('mood_'));
+    DB_GATEWAY.set('customMoodOptions', customMoods);
 }
+
 
 // 统一的获取函数（替换掉原来的 getAllMoodOptions）
 function getAllMoodOptions() {
@@ -248,7 +141,7 @@ window.getAllMoodOptions = getAllMoodOptions;
     }
 }
 async function saveMoodData() {
-    await localforage.setItem(getStorageKey('moodCalendar'), moodData);
+    await DB_GATEWAY.set('moodCalendar', moodData);
     window.moodData = moodData;
     var moodModal = document.getElementById('mood-modal');
     if (moodModal && !moodModal.classList.contains('hidden') && moodModal.style.display !== 'none') {
@@ -256,7 +149,7 @@ async function saveMoodData() {
     }
 }
 function saveCustomMoodOptions() {
-    localforage.setItem(getStorageKey('customMoodOptions'), customMoodOptions);
+    DB_GATEWAY.set('customMoodOptions', customMoodOptions);
 }
 
 function getAllMoodOptions() {
