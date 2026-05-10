@@ -1,4 +1,4 @@
-/*
+/**
  * features/calendar.js - 日历日程系统
  */
 
@@ -194,7 +194,7 @@ function updateEventsList(dateStr) {
     };
     if (hasMood) {
         // 构建第一行：我的
-        /*let myLine = '';
+        let myLine = '';
         if (moodEntry.user) {
             const obj = window.getAllMoodOptions().find(m => m.key === moodEntry.user);
             const noteText = (moodEntry.note || obj.label || '').substring(0, 8) + ((moodEntry.note || obj.label || '').length > 8 ? '...' : '');
@@ -207,27 +207,7 @@ function updateEventsList(dateStr) {
             const obj = window.getAllMoodOptions().find(m => m.key === moodEntry.partner);
             const noteText = (moodEntry.partnerNote || obj.label || '').substring(0, 8) + ((moodEntry.partnerNote || obj.label || '').length > 8 ? '...' : '');
             partnerLine = `<div style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Ta的：${obj ? obj.kaomoji : ''} ${noteText}</div>`;
-        }*/
-       // 构建第一行：我的
-        let myLine = '';
-        if (moodEntry.user) {
-            const obj = window.getAllMoodOptions().find(m => m.key === moodEntry.user);
-            const safeLabel = obj ? obj.label : '已删除';
-            const safeNote = moodEntry.note || safeLabel;
-            const noteText = safeNote.substring(0, 8) + (safeNote.length > 8 ? '...' : '');
-            myLine = `<div style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">我的：${obj ? obj.kaomoji : '❓'} ${noteText}</div>`;
         }
-
-        // 构建第二行：Ta的
-        let partnerLine = '';
-        if (moodEntry.partner) {
-            const obj = window.getAllMoodOptions().find(m => m.key === moodEntry.partner);
-            const safeLabel = obj ? obj.label : '已删除';
-            const safeNote = moodEntry.partnerNote || safeLabel;
-            const noteText = safeNote.substring(0, 8) + (safeNote.length > 8 ? '...' : '');
-            partnerLine = `<div style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Ta的：${obj ? obj.kaomoji : '❓'} ${noteText}</div>`;
-        }
-
         // 拼接卡片：左侧文字，右侧“点击查看”
         moodHTML = `
             <div class="mood-detail-card" onclick="window.openMoodDetailModal('${dateStr}')" style="display: flex; justify-content: space-between; align-items: center; padding: 8px 10px;">
@@ -409,7 +389,7 @@ window.saveCalendarEvent = function() {
             throttledSaveData();
         } else {
             // 如果全局保存函数不存在，尝试直接保存到 localforage
-            DB_GATEWAY.set('calendarEvents', calendarEvents);
+            localforage.setItem(getStorageKey('calendarEvents'), calendarEvents);
             console.warn('使用了兜底保存方式');
         }
     } catch(e) {
@@ -444,7 +424,7 @@ window.deleteCalendarEvent = function(eventId) {
             throttledSaveData();
         } else {
             // 如果全局保存函数不存在，尝试直接保存到 localforage
-           DB_GATEWAY.set('calendarEvents', calendarEvents);
+            localforage.setItem(getStorageKey('calendarEvents'), calendarEvents);
             console.warn('使用了兜底保存方式');
         }
     } catch(e) {

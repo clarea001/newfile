@@ -1,4 +1,4 @@
-/*
+/**
  * call.js v5.0
  * Fix: avatar/pulse offset (explicit px sizes, no clamp %), pill drag
  * Note: data-modal redesign is now in data-modal.js
@@ -539,6 +539,12 @@ html:not([data-theme="dark"])[data-color-theme="black-white"] .message-sent{
     function injectToolbarBtn() {
         if (document.getElementById('call-toolbar-btn')) return;
         const btn = document.createElement('button');
+        /*const anchor = document.getElementById('attachment-btn');
+        let anchor = document.getElementById('attachment-btn');
+        if (!anchor) {
+            anchor = document.getElementById('send-btn');
+        }
+        if (!anchor) return;*/
 
         // --- 新的定位逻辑结束 ---
         
@@ -700,67 +706,49 @@ html:not([data-theme="dark"])[data-color-theme="black-white"] .message-sent{
             }
         }
     }
-
-/*async function applyBg() {
-    // 1. 清理上一次的状态
-    const imgEl = document.getElementById('call-bg-img');
-    const vidEl = document.getElementById('call-bg-video');
-    if (imgEl) { imgEl.style.display = 'none'; imgEl.removeAttribute('src'); }
-    if (vidEl) { vidEl.pause(); vidEl.removeAttribute('src'); vidEl.load(); }
-
-    // 2. 直接从大部队拿数据（已经是标准格式，包含 src）
-    let library = [];
-    if (typeof DB_GATEWAY !== 'undefined') {
-        library = DB_GATEWAY.getMedia('callBgLibrary') || [];
-    } else {
-        library = window.callBgLibrary || [];
-    }
-    // ✅ 强制同步：每次应用背景前，确保拿到的是用户最新选中的 ID
-    if (typeof activeCallBg === 'undefined' || !activeCallBg) {
-        activeCallBg = localStorage.getItem('activeCallBg') || null;
-    }
-    const item = library.find(i => i.id === activeCallBg);
-    if (!item || !item.src) return; // 没选背景或者没图，就保持默认纯色
-
-    // 3. 直接投喂给 DOM
-    if (item.type === 'video' && vidEl) {
-        vidEl.src = item.src;
-        vidEl.play().catch(()=>{});
-    } else if (imgEl) {
-        imgEl.src = item.src;
-        imgEl.style.display = 'block';
-    }
-}*/
 async function applyBg() {
-    // 1. 清理上一次的状态
+    // 1. 安全检查数据库是否就绪
+    if (!CallBgDB || !CallBgDB.db) return;
+
+    // 2. 清理上一次的背景状态，防止视频和图片打架
     const imgEl = document.getElementById('call-bg-img');
     const vidEl = document.getElementById('call-bg-video');
     if (imgEl) { imgEl.style.display = 'none'; imgEl.removeAttribute('src'); }
     if (vidEl) { vidEl.pause(); vidEl.removeAttribute('src'); vidEl.load(); }
 
-    // 2. 直接从大部队拿数据
-    let library = [];
-    if (typeof DB_GATEWAY !== 'undefined') {
-        library = DB_GATEWAY.getMedia('callBgLibrary') || [];
-    } else {
-        library = window.callBgLibrary || [];
-    }
+    // 3. 找到当前选中的背景记录
+    const item = callBgLibrary.find(i => i.id === activeCallBg);
+    if (!item) return; // 没选背景就保持默认纯色
 
-    if (typeof activeCallBg === 'undefined' || !activeCallBg) {
-        activeCallBg = localStorage.getItem('activeCallBg') || null;
-    }
+    // 4. 去数据库把真文件拿出来
+    try {
+        const tx = CallBgDB.db.transaction(CallBgDB.storeName, 'readonly');
+        const request = tx.objectStore(CallBgDB.storeName).get(item.id);
+        
+        request.onsuccess = () => {
+            const file = request.result?.file;
+            if (!file) return; // 文件丢失就不处理
+            
+            const url = URL.createObjectURL(file); // 拿到真实的本地链接
 
-    // 🌟 核心修复：纯字符串数组中，直接通过 Base64 源码匹配选中项
-    const selectedItem = library.find(url => url === activeCallBg);
-    
-    if (!selectedItem) return; // 没选中或者找不到对应图，保持默认
-
-    // 3. 直接投喂给 DOM (目前是纯字符串，默认当图片处理；如果未来要支持视频，需单独加判断)
-    if (imgEl) {
-        imgEl.src = selectedItem;
-        imgEl.style.display = 'block';
+            // 5. 精准投喂给真正的 DOM 元素！
+            if (item.type === 'video') {
+                if (vidEl) {
+                    vidEl.src = url;
+                    vidEl.play().catch(()=>{});
+                }
+            } else {
+                if (imgEl) {
+                    imgEl.src = url;
+                    imgEl.style.display = 'block'; // 显现图片
+                }
+            }
+        };
+    } catch(e) {
+        console.error('[通话背景] 应用失败:', e);
     }
 }
+
 
     /* ── Start / End ──────────────────────────────────────── */
 function startCall(isPartner) {

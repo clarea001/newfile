@@ -23,10 +23,10 @@ function renderStatsContent() {
                 return;
             }
 
-            /*const getTopReplies = (msgs) => {
+            const getTopReplies = (msgs) => {
                 const countMap = {};
                 msgs.forEach(msg => {
-                    const text = (typeof msg.text === 'string' ? msg.text : '').trim();
+                    const text = msg.text.trim();
                     if (text) {
                         countMap[text] = (countMap[text] || 0) + 1;
                     }
@@ -35,7 +35,7 @@ function renderStatsContent() {
                     .map(([text, count]) => ({ text, count }))
                     .sort((a, b) => b.count - a.count)
                     .slice(0, 5); 
-            };*/
+            };
 
             const partnerTop = getTopReplies(partnerMessages);
             const myTop = getTopReplies(myMessages);
@@ -724,38 +724,25 @@ document.addEventListener('click', function(e) {
     }
 });
 
-/*function getDiviHistory() {
-    // 页面不操心搬家，只管向管家要新仓库的数据
-   // return DB_GATEWAY.get('diviHistory') || [];
-   return DB_GATEWAY.get('diviHistory').concat(localStorage.getItem('diviHistory_v1'));
-}*/
+const DIVI_HISTORY_KEY = 'diviHistory_v1';
+const DIVI_HISTORY_MAX = 50;
+
 function getDiviHistory() {
-    const newData = DB_GATEWAY.get('diviHistory') || [];
-    let oldData = [];
-    try { oldData = JSON.parse(localStorage.getItem('diviHistory_v1') || '[]'); } catch(e) {}
-    return [...newData, ...oldData];
+    try { return JSON.parse(localStorage.getItem(DIVI_HISTORY_KEY) || '[]'); } catch(e) { return []; }
 }
-
-
 
 function saveDiviHistory(entry) {
     const history = getDiviHistory();
     entry.id = Date.now();
     entry.time = new Date().toLocaleString('zh-CN', { month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' });
     history.unshift(entry);
-    if (history.length > 50) history.splice(50); // 最多保留50条
-    
-    // 一句话存盘，并自动同步给 window 内存（导出弹窗靠这个吃饭）
-    DB_GATEWAY.set('diviHistory', history);
+    if (history.length > DIVI_HISTORY_MAX) history.splice(DIVI_HISTORY_MAX);
+    localStorage.setItem(DIVI_HISTORY_KEY, JSON.stringify(history));
 }
 
 function clearDiviHistory() {
     if (!confirm('确定要清空所有占卜记录吗？')) return;
-    
-    // 一句话清空，DB_GATEWAY 会自动把 window 里的也删干净
-    DB_GATEWAY.set('diviHistory', []);
-    localStorage.removeItem('diviHistory_v1');
-    
+    localStorage.removeItem(DIVI_HISTORY_KEY);
     renderDiviHistory();
 }
 
@@ -763,23 +750,36 @@ function renderDiviHistory() {
     const list = document.getElementById('divi-history-list');
     const empty = document.getElementById('divi-history-empty');
     if (!list) return;
-    
-    const history = getDiviHistory(); // 同步读取，不用加 await
-    
+    const history = getDiviHistory();
     if (!history.length) {
         list.innerHTML = '';
         if (empty) empty.style.display = '';
         return;
     }
     if (empty) empty.style.display = 'none';
-    
     list.innerHTML = history.map(entry => {
-        const cardTags = (entry.cards || []).map(c => `<span class="divi-history-card-tag ${c.isReversed ? 'reversed' : ''}">${c.isReversed ? '<i class="fas fa-arrow-down" style="font-size:9px;"></i>' : '<i class="fas fa-arrow-up" style="font-size:9px;"></i>'} ${c.name} </span>` ).join('');
-        const detailLines = (entry.cards || []).map(c => `<div style="margin-bottom:6px;"><b>${c.name}${c.isReversed ? ' 逆位' : ' 正位'}</b><br>${c.keyword} —${c.meaning}</div>` ).join('');
-        return ` <div class="divi-history-item"> <div class="divi-history-meta"> <span class="divi-history-type">${entry.type || '占卜'}</span> <span class="divi-history-time">${entry.time || ''}</span> </div> ${entry.question ? `<div class="divi-history-question">「${entry.question}」</div>` : ''} <div class="divi-history-cards">${cardTags}</div>${detailLines ? `<button class="divi-history-expand-btn" onclick="toggleDiviDetail(this)">查看解读 ▾</button> <div class="divi-history-detail">${detailLines}</div>` : ''} </div>`;
+        const cardTags = (entry.cards || []).map(c =>
+            `<span class="divi-history-card-tag ${c.isReversed ? 'reversed' : ''}">
+                ${c.isReversed ? '<i class="fas fa-arrow-down" style="font-size:9px;"></i>' : '<i class="fas fa-arrow-up" style="font-size:9px;"></i>'}
+                ${c.name}
+            </span>`
+        ).join('');
+        const detailLines = (entry.cards || []).map(c =>
+            `<div style="margin-bottom:6px;"><b>${c.name}${c.isReversed ? ' 逆位' : ' 正位'}</b><br>${c.keyword} — ${c.meaning}</div>`
+        ).join('');
+        return `
+        <div class="divi-history-item">
+            <div class="divi-history-meta">
+                <span class="divi-history-type">${entry.type || '占卜'}</span>
+                <span class="divi-history-time">${entry.time || ''}</span>
+            </div>
+            ${entry.question ? `<div class="divi-history-question">「${entry.question}」</div>` : ''}
+            <div class="divi-history-cards">${cardTags}</div>
+            ${detailLines ? `<button class="divi-history-expand-btn" onclick="toggleDiviDetail(this)">查看解读 ▾</button>
+            <div class="divi-history-detail">${detailLines}</div>` : ''}
+        </div>`;
     }).join('');
 }
-
 function toggleDiviDetail(btn) {
     const detail = btn.nextElementSibling;
     if (!detail) return;
@@ -799,284 +799,164 @@ document.addEventListener('click', function(e) {
         if (modal) hideModal(modal);
     }
 });
-/*
- * features/decision.js - 抉择模块 Decision & Picker
- * 命运转盘与随机选择器
+
+
+/**
+ * renderFavorites - 渲染收藏夹列表
+ * 显示所有已收藏的消息
  */
-
-let wheelOptions = ["是", "否", "再想一想", "听你的"];
-let wheelResultText = "";
-
-function initDecisionModule() {
-    const entryBtn = document.getElementById('decision-function'); 
-    if(entryBtn) {
-        const newBtn = entryBtn.cloneNode(true);
-        entryBtn.parentNode.replaceChild(newBtn, entryBtn);
-        newBtn.addEventListener('click', () => {
-            hideModal(document.getElementById('advanced-modal'));
-            showModal(document.getElementById('decision-menu-modal'));
-        });
-    }
-
-    const openCoinBtn = document.getElementById('open-coin-toss');
-    const openWheelBtn = document.getElementById('open-wheel');
-    const closeMenuBtn = document.getElementById('close-decision-menu');
-    const closeWheelBtn = document.getElementById('close-wheel');
-    const addOptionBtn = document.getElementById('add-wheel-option');
-    const spinBtn = document.getElementById('spin-wheel-btn');
-    const sendResultBtn = document.getElementById('send-wheel-result');
-
-    if (openCoinBtn && !openCoinBtn.dataset.initialized) {
-        openCoinBtn.addEventListener('click', () => {
-            hideModal(document.getElementById('decision-menu-modal'));
-            handleCoinToss();
-        });
-        openCoinBtn.dataset.initialized = 'true';
-    }
-
-    if (openWheelBtn && !openWheelBtn.dataset.initialized) {
-        openWheelBtn.addEventListener('click', () => {
-            hideModal(document.getElementById('decision-menu-modal'));
-            initPicker();
-            showModal(document.getElementById('wheel-modal'));
-        });
-        openWheelBtn.dataset.initialized = 'true';
-    }
-    
-    if (closeMenuBtn && !closeMenuBtn.dataset.initialized) {
-        closeMenuBtn.addEventListener('click', () => hideModal(document.getElementById('decision-menu-modal')));
-        closeMenuBtn.dataset.initialized = 'true';
-    }
-
-    if (closeWheelBtn && !closeWheelBtn.dataset.initialized) {
-        closeWheelBtn.addEventListener('click', () => hideModal(document.getElementById('wheel-modal')));
-        closeWheelBtn.dataset.initialized = 'true';
-    }
-
-    if (addOptionBtn && !addOptionBtn.dataset.initialized) {
-        addOptionBtn.addEventListener('click', () => {
-            wheelOptions.push(`选项 ${wheelOptions.length + 1}`);
-            renderPickerOptions();
-            renderPickerCards();
-        });
-        addOptionBtn.dataset.initialized = 'true';
-    }
-
-    if (spinBtn && !spinBtn.dataset.initialized) {
-        spinBtn.addEventListener('click', doPick);
-        spinBtn.dataset.initialized = 'true';
-    }
-    
-    if (sendResultBtn && !sendResultBtn.dataset.initialized) {
-        sendResultBtn.addEventListener('click', () => {
-            if(wheelResultText) {
-                sendMessage(`✨ 随机抽签结果：${wheelResultText}`, 'normal');
-                hideModal(document.getElementById('wheel-modal'));
-                wheelResultText = "";
-                sendResultBtn.style.display = 'none';
-                const resultEl = document.getElementById('wheel-result');
-                if (resultEl) { resultEl.textContent = ""; resultEl.classList.remove('show'); }
-                spinBtn.disabled = false;
-            }
-        });
-        sendResultBtn.dataset.initialized = 'true';
-    }
-}
-
-function initPicker() {
-    renderPickerOptions();
-    renderPickerCards();
-    const result = document.getElementById('wheel-result');
-    const sendBtn = document.getElementById('send-wheel-result');
-    const spinBtn = document.getElementById('spin-wheel-btn');
-    if (result) { result.textContent = ""; result.classList.remove('show'); }
-    if (sendBtn) sendBtn.style.display = 'none';
-    if (spinBtn) spinBtn.disabled = false;
-    wheelResultText = "";
-}
-
-function renderPickerOptions() {
-    const list = document.getElementById('wheel-options-list');
+function renderFavorites() {
+    const list = document.getElementById('favorites-list');
     if (!list) return;
-    list.innerHTML = '';
-    const colors = ['#FFD93D','#FF6B6B','#6BCB77','#4D96FF','#E0C3FC','#FF9A8B','#A8D8EA','#C44569'];
-    wheelOptions.forEach((opt, index) => {
-        const item = document.createElement('div');
-        item.className = 'picker-option-item';
-        item.innerHTML = `
-            <div class="picker-option-color-dot" style="background:${colors[index % colors.length]}"></div>
-            <input type="text" class="picker-option-input" value="${opt}" placeholder="输入选项...">
-            <span class="picker-option-remove"><i class="fas fa-times"></i></span>
-        `;
-        item.querySelector('input').addEventListener('input', (e) => {
-            wheelOptions[index] = e.target.value;
-            renderPickerCards();
-        });
-        item.querySelector('.picker-option-remove').addEventListener('click', () => {
-            if(wheelOptions.length <= 2) {
-                showNotification('至少保留两个选项', 'warning');
-                return;
-            }
-            wheelOptions.splice(index, 1);
-            renderPickerOptions();
-            renderPickerCards();
-        });
-        list.appendChild(item);
-    });
-}
 
-function renderPickerCards(selectedIndex = -1) {
-    const row = document.getElementById('picker-cards-row');
-    if (!row) return;
-    const colors = ['#FFD93D','#FF6B6B','#6BCB77','#4D96FF','#E0C3FC','#FF9A8B','#A8D8EA','#C44569'];
-    row.innerHTML = '';
-    wheelOptions.forEach((opt, i) => {
-        const card = document.createElement('div');
-        card.className = 'picker-card';
-        if (selectedIndex >= 0) {
-            if (i === selectedIndex) card.classList.add('selected');
-            else card.classList.add('unselected');
-        }
-        if (selectedIndex >= 0 && i === selectedIndex) {
-            card.style.background = `linear-gradient(135deg, ${colors[i % colors.length]}, ${colors[(i+2) % colors.length]})`;
-        } else {
-            card.style.borderTop = `3px solid ${colors[i % colors.length]}`;
-        }
-        card.style.animationDelay = (i * 0.06) + 's';
-        const label = opt || `选项${i+1}`;
-        card.textContent = label.length > 6 ? label.slice(0,5) + '…' : label;
-        row.appendChild(card);
-    });
-}
+    const favoritedMessages = (typeof messages !== 'undefined' ? messages : [])
+        .filter(m => m.favorited && m.type !== 'system');
 
-function doPick() {
-    if (wheelOptions.length < 2) {
-        showNotification("请至少添加两个选项", "warning");
+    if (favoritedMessages.length === 0) {
+        list.innerHTML = `
+            <div class="stats-empty-state">
+                <div class="stats-empty-icon"><i class="fas fa-star"></i></div>
+                <h3>收藏夹空空如也</h3>
+                <p>点击消息旁的 ☆ 星标即可收藏</p>
+            </div>`;
         return;
     }
-    const spinBtn = document.getElementById('spin-wheel-btn');
-    const resultDisplay = document.getElementById('wheel-result');
-    const sendBtn = document.getElementById('send-wheel-result');
-    
-    spinBtn.disabled = true;
-    sendBtn.style.display = 'none';
-    resultDisplay.classList.remove('show');
-    resultDisplay.textContent = "";
 
-    let flashCount = 0;
-    const totalFlashes = 16 + Math.floor(Math.random() * 8);
-    const finalIndex = Math.floor(Math.random() * wheelOptions.length);
-    
-    function flash() {
-        const row = document.getElementById('picker-cards-row');
-        if (!row) return;
-        const cards = row.querySelectorAll('.picker-card');
-        cards.forEach(c => c.style.transform = '');
-        
-        let showIdx;
-        if (flashCount < totalFlashes - 3) {
-            showIdx = Math.floor(Math.random() * wheelOptions.length);
-        } else {
-            showIdx = finalIndex;
-        }
-        
-        cards.forEach((c, i) => {
-            if (i === showIdx) {
-                c.style.transform = 'translateY(-4px) scale(1.06)';
-                c.style.background = `linear-gradient(135deg, var(--accent-color), rgba(var(--accent-color-rgb),0.7))`;
-                c.style.borderColor = 'transparent';
-                c.style.color = '#fff';
-            } else {
-                c.style.transform = '';
-                c.style.background = '';
-                c.style.borderColor = '';
-                c.style.color = '';
+    list.innerHTML = favoritedMessages.map(msg => {
+        const isUser = msg.sender === 'user';
+        const senderName = isUser
+            ? ((typeof settings !== 'undefined' && settings.myName) || '我')
+            : ((typeof settings !== 'undefined' && settings.partnerName) || msg.sender || '对方');
+        const ts = msg.timestamp ? new Date(msg.timestamp).toLocaleString('zh-CN', {
+            month: '2-digit', day: '2-digit',
+            hour: '2-digit', minute: '2-digit'
+        }) : '';
+        const content = msg.text
+            ? msg.text.replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            : (msg.image ? `<img src="${msg.image}" style="max-width:100%;max-height:180px;border-radius:8px;display:block;margin-top:4px;cursor:pointer;" onclick="if(typeof viewImage==='function')viewImage('${msg.image.replace(/'/g,'\\\'')}')" loading="lazy">` : '');
+        // Build avatar HTML
+        const avatarEl = isUser
+            ? (typeof DOMElements !== 'undefined' ? DOMElements.me.avatar : null)
+            : (typeof DOMElements !== 'undefined' ? DOMElements.partner.avatar : null);
+        const avatarImg = avatarEl ? avatarEl.querySelector('img') : null;
+        const avatarHtml = avatarImg
+            ? `<img src="${avatarImg.src}" style="width:28px;height:28px;border-radius:50%;object-fit:cover;flex-shrink:0;">`
+            : `<div style="width:28px;height:28px;border-radius:50%;background:rgba(var(--accent-color-rgb),0.15);display:flex;align-items:center;justify-content:center;flex-shrink:0;"><i class="fas fa-user" style="font-size:11px;color:var(--accent-color);"></i></div>`;
+        return `
+            <div class="fav-item" style="
+                display:flex;flex-direction:column;gap:4px;
+                padding:12px 14px;border-radius:12px;
+                background:var(--primary-bg);
+                border:1px solid var(--border-color);
+                margin-bottom:10px;
+                position:relative;
+            ">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+                    ${avatarHtml}
+                    <span style="font-size:12px;font-weight:600;color:var(--accent-color);">${senderName}</span>
+                    <span style="font-size:11px;color:var(--text-secondary);margin-left:auto;padding-right:24px;">${ts}</span>
+                </div>
+                <div style="font-size:13px;color:var(--text-primary);line-height:1.5;word-break:break-word;">${content}</div>
+                <button class="fav-remove-btn" data-id="${msg.id}" style="
+                    position:absolute;top:8px;right:10px;
+                    background:none;border:none;cursor:pointer;
+                    color:var(--text-secondary);font-size:14px;padding:2px 4px;
+                    opacity:0.6;
+                " title="取消收藏"><i class="fas fa-star" style="color:var(--accent-color);"></i></button>
+            </div>`;
+    }).join('');
+
+    // Bind unfavorite buttons
+    list.querySelectorAll('.fav-remove-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const id = Number(btn.dataset.id);
+            const msg = (typeof messages !== 'undefined' ? messages : []).find(m => m.id === id);
+            if (msg) {
+                msg.favorited = false;
+                if (typeof throttledSaveData === 'function') throttledSaveData();
+                if (typeof showNotification === 'function') showNotification('已取消收藏', 'success', 1500);
+                renderFavorites();
             }
         });
-        
-        flashCount++;
-        const delay = flashCount < 8 ? 80 : flashCount < 14 ? 130 : 250;
-        if (flashCount < totalFlashes) {
-            setTimeout(flash, delay);
-        } else {
-            setTimeout(() => {
-                renderPickerCards(finalIndex);
-                wheelResultText = wheelOptions[finalIndex];
-                resultDisplay.innerHTML = `<i class="fas fa-star" style="font-size:14px; margin-right:6px;"></i>${wheelResultText}`;
-                resultDisplay.classList.add('show');
-                spinBtn.disabled = false;
-                sendBtn.style.display = 'inline-block';
-                playSound('favorite');
-            }, 300);
-        }
+    });
+}
+window.renderFavorites = renderFavorites;
+
+/**
+ * _runMsgSearch - 消息搜索，显示头像
+ */
+window._runMsgSearch = function() {
+    const input = document.getElementById('msg-search-input');
+    const dateFrom = document.getElementById('msg-search-date-from');
+    const dateTo = document.getElementById('msg-search-date-to');
+    const resultsEl = document.getElementById('msg-search-results');
+    if (!resultsEl) return;
+
+    const q = (input ? input.value.trim() : '').toLowerCase();
+    const from = dateFrom && dateFrom.value ? new Date(dateFrom.value) : null;
+    const to = dateTo && dateTo.value ? new Date(dateTo.value + 'T23:59:59') : null;
+
+    if (!q && !from && !to) {
+        resultsEl.innerHTML = '<div style="text-align:center;padding:30px;color:var(--text-secondary);font-size:13px;">输入关键词或选择日期开始搜索</div>';
+        return;
     }
-    
-    flash();
-}
 
-/*
- * handleCoinToss - 抛硬币入口
- * 显示抛硬币覆盖层并开始动画
- */
-function handleCoinToss() {
-    const overlay = DOMElements.coinTossOverlay;
-    if (!overlay) return;
-    overlay.classList.remove('finished');
-    overlay.classList.add('visible');
-    const resultText = DOMElements.coinResultText;
-    if (resultText) resultText.textContent = '';
-    const sendBtn = DOMElements.sendCoinResult;
-    if (sendBtn) sendBtn.style.display = 'none';
-    const retryBtn = document.getElementById('retry-coin-toss');
-    if (retryBtn) retryBtn.style.display = 'none';
-    // Clear any previously locked transform
-    if (DOMElements.animatedCoin) DOMElements.animatedCoin.style.transform = '';
-    startCoinFlipAnimation();
-}
-window.handleCoinToss = handleCoinToss;
+    const allMessages = typeof messages !== 'undefined' ? messages : [];
+    const results = allMessages.filter(m => {
+        if (m.type === 'system') return false;
+        const ts = m.timestamp ? new Date(m.timestamp) : null;
+        if (from && ts && ts < from) return false;
+        if (to && ts && ts > to) return false;
+        if (q && m.text && m.text.toLowerCase().includes(q)) return true;
+        if (q && !m.text && m.image) return false; // image-only, no text
+        return !q; // date-only filter
+    });
 
-/*
- * startCoinFlipAnimation - 执行硬币翻转动画并显示结果
- * 修复：动画结束后硬币朝向与结果文字严格同步
- */
-function startCoinFlipAnimation() {
-    const coin = DOMElements.animatedCoin;
-    const resultText = DOMElements.coinResultText;
-    const overlay = DOMElements.coinTossOverlay;
-    if (!coin || !overlay) return;
+    if (results.length === 0) {
+        resultsEl.innerHTML = `<div style="text-align:center;padding:30px;color:var(--text-secondary);font-size:13px;">未找到 "${q || '相关'}" 的消息</div>`;
+        return;
+    }
 
-    // Reset
-    overlay.classList.remove('finished');
-    if (resultText) resultText.textContent = '';
-    const sendBtn = DOMElements.sendCoinResult;
-    if (sendBtn) sendBtn.style.display = 'none';
-    const retryBtn = document.getElementById('retry-coin-toss');
-    if (retryBtn) retryBtn.style.display = 'none';
+    const myAvatarEl = typeof DOMElements !== 'undefined' ? DOMElements.me.avatar : null;
+    const partnerAvatarEl = typeof DOMElements !== 'undefined' ? DOMElements.partner.avatar : null;
+    const myImg = myAvatarEl ? myAvatarEl.querySelector('img') : null;
+    const partnerImg = partnerAvatarEl ? partnerAvatarEl.querySelector('img') : null;
 
-    // Decide outcome FIRST, then build animation to match
-    const isHeads = Math.random() < 0.5;
-    const result = isHeads ? '正面 ☀️' : '反面 🌙';
-    lastCoinResult = result;
+    function getAvatarHtml(isUser) {
+        const img = isUser ? myImg : partnerImg;
+        if (img) return `<img src="${img.src}" style="width:28px;height:28px;border-radius:50%;object-fit:cover;flex-shrink:0;">`;
+        return `<div style="width:28px;height:28px;border-radius:50%;background:rgba(var(--accent-color-rgb),0.15);display:flex;align-items:center;justify-content:center;flex-shrink:0;"><i class="fas fa-user" style="font-size:11px;color:var(--accent-color);"></i></div>`;
+    }
 
-    // Remove all animation classes and force reflow
-    coin.classList.remove('flipping-heads', 'flipping-tails', 'coin-show-front', 'coin-show-back');
-    void coin.offsetWidth;
+    function highlight(text, keyword) {
+        if (!keyword) return text.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        const escaped = text.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        const re = new RegExp('(' + keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'gi');
+        return escaped.replace(re, '<mark style="background:rgba(var(--accent-color-rgb),0.25);color:var(--accent-color);border-radius:2px;padding:0 1px;">$1</mark>');
+    }
 
-    // Add the correct flip animation
-    // flipping-heads ends at rotateY(2160deg) = 0 mod 360 → front face visible
-    // flipping-tails ends at rotateY(2340deg) = 180 mod 360 → back face visible
-    coin.classList.add(isHeads ? 'flipping-heads' : 'flipping-tails');
-
-    // Animation duration is 3s; wait 3s + small buffer then show result
-    setTimeout(() => {
-        coin.classList.remove('flipping-heads', 'flipping-tails');
-        // Lock final rotation so the coin stays on the correct side
-        coin.style.transform = isHeads ? 'rotateY(0deg)' : 'rotateY(180deg)';
-        if (resultText) resultText.textContent = result;
-        overlay.classList.add('finished');
-        if (sendBtn) sendBtn.style.display = '';
-        if (retryBtn) retryBtn.style.display = '';
-        if (typeof playSound === 'function') playSound('favorite');
-    }, 3050);
-}
-window.startCoinFlipAnimation = startCoinFlipAnimation;
+    resultsEl.innerHTML = results.slice(0, 100).map(msg => {
+        const isUser = msg.sender === 'user';
+        const senderName = isUser
+            ? ((typeof settings !== 'undefined' && settings.myName) || '我')
+            : ((typeof settings !== 'undefined' && settings.partnerName) || msg.sender || '对方');
+        const ts = msg.timestamp ? new Date(msg.timestamp).toLocaleString('zh-CN', {
+            month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit'
+        }) : '';
+        const content = msg.text
+            ? highlight(msg.text, q)
+            : (msg.image ? `<img src="${msg.image}" style="max-height:60px;border-radius:6px;display:block;margin-top:4px;" loading="lazy">` : '');
+        return `<div style="display:flex;gap:10px;align-items:flex-start;padding:11px 12px;border-radius:12px;background:var(--primary-bg);border:1px solid var(--border-color);margin-bottom:8px;cursor:pointer;"
+            onclick="if(typeof showNotification==='function')showNotification('已定位消息', 'info', 1500); if(typeof scrollToQuotedMessage==='function'){var el=document.createElement('div');el.dataset.replyId='${msg.id}';scrollToQuotedMessage(el);}">
+            ${getAvatarHtml(isUser)}
+            <div style="flex:1;min-width:0;">
+                <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;">
+                    <span style="font-size:12px;font-weight:600;color:var(--accent-color);">${senderName}</span>
+                    <span style="font-size:11px;color:var(--text-secondary);">${ts}</span>
+                </div>
+                <div style="font-size:13px;color:var(--text-primary);line-height:1.5;word-break:break-word;overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;">${content}</div>
+            </div>
+        </div>`;
+    }).join('') + (results.length > 100 ? `<div style="text-align:center;padding:10px;font-size:12px;color:var(--text-secondary);">仅显示前100条，共找到 ${results.length} 条</div>` : '');
+};

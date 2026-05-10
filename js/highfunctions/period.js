@@ -1,4 +1,4 @@
-/*
+/**
  * features/period.js - 月经记录系统
  * Period Tracker Module
  */
@@ -6,7 +6,7 @@
 // ===== 数据加载 =====
 async function initPeriodData() {
     try {
-        const savedRecords = await DB_GATEWAY.get('periodRecords');
+        const savedRecords = await localforage.getItem(getStorageKey('periodRecords'));
         if (savedRecords) {
             periodRecords = savedRecords.map(record => ({
                 ...record,
@@ -16,12 +16,12 @@ async function initPeriodData() {
             }));
         }
         
-        const savedSettings = await DB_GATEWAY.get('periodSettings');
+        const savedSettings = await localforage.getItem(getStorageKey('periodSettings'));
         if (savedSettings) {
             periodSettings = { ...periodSettings, ...savedSettings };
         }
         
-        const savedCheckDate = await DB_GATEWAY.get('lastPeriodReminderCheck');
+        const savedCheckDate = await localforage.getItem(getStorageKey('lastPeriodReminderCheck'));
         if (savedCheckDate) {
             lastPeriodReminderCheck = savedCheckDate;
         }
@@ -33,10 +33,10 @@ async function initPeriodData() {
 // ===== 数据保存 =====
 function savePeriodData() {
     try {
-        DB_GATEWAY.set('periodRecords', periodRecords);
-        DB_GATEWAY.set('periodSettings', periodSettings);
+        localforage.setItem(getStorageKey('periodRecords'), periodRecords);
+        localforage.setItem(getStorageKey('periodSettings'), periodSettings);
         if (lastPeriodReminderCheck) {
-            DB_GATEWAY.set('lastPeriodReminderCheck', lastPeriodReminderCheck);
+            localforage.setItem(getStorageKey('lastPeriodReminderCheck'), lastPeriodReminderCheck);
         }
     } catch (e) {
         console.error('Error saving period data:', e);
