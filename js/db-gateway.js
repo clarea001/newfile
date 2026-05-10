@@ -282,7 +282,7 @@ const DB_GATEWAY = {
             } else if (key === mainSessionPrefix + 'periodSettings') {
                 newAppData.periodSettings = val;
             }
-            // 心情与日历合并
+            /*// 心情与日历合并
             else if (key === mainSessionPrefix + 'moodData') {
                 newAppData.moodAndCalendar = newAppData.moodAndCalendar || {};
                 newAppData.moodAndCalendar.moodRecords = val;
@@ -292,7 +292,20 @@ const DB_GATEWAY = {
             } else if (key === mainSessionPrefix + 'customMoodOptions') {
                 newAppData.moodAndCalendar = newAppData.moodAndCalendar || {};
                 newAppData.moodAndCalendar.moodOptions = val;
+            }*/
+                       // 🌟 核心修复：日历事件独立入库，不再强行塞进 moodAndCalendar！
+            else if (key === mainSessionPrefix + 'calendarEvents') {
+                newAppData.calendarEvents = val; // 直接放进叫 calendarEvents 的房间！
             }
+            // 心情数据依然合并
+            else if (key === mainSessionPrefix + 'moodData') {
+                newAppData.moodAndCalendar = newAppData.moodAndCalendar || {};
+                newAppData.moodAndCalendar.moodRecords = val;
+            } else if (key === mainSessionPrefix + 'customMoodOptions') {
+                newAppData.moodAndCalendar = newAppData.moodAndCalendar || {};
+                newAppData.moodAndCalendar.moodOptions = val;
+            }
+
             // 没带前缀的全局配置
             else if (key === PREFIX + 'customThemes') {
                 newAppData.customThemes = val;
